@@ -68,7 +68,7 @@ if st.button("Run Live Scan"):
                 st.warning("• **Primary Trade:** Range-trading strategies / Mean-reversion.")
                 st.write("• **Macro Driver:** Real interest rate cushion maintains equilibrium without strong momentum.")
 
-        # Advanced Statistical Modeling Section
+        # Quantitative Statistical Modeling Suite
         st.divider()
         st.subheader("Quantitative Statistical Modeling Suite")
         
@@ -82,7 +82,7 @@ if st.button("Run Live Scan"):
             ])
 
             with m_tab1:
-                st.markdown("#### 3-Month ARIMA (1,1,1) Projections")
+                st.markdown("#### 3-Month ARIMA (1,1,1) CPI Projections")
                 cpi_forecast, arima_err = run_arima_forecast(hist_df['cpi'])
                 if cpi_forecast is not None:
                     st.write("**Forecasted CPI Inflation Next 3 Months:**")
@@ -95,7 +95,7 @@ if st.button("Run Live Scan"):
                 logit_res, logit_err = run_logistic_regression(hist_df)
                 if logit_res:
                     st.metric("Statistical Probability P(DXY Close UP Next Month)", f"{logit_res['prob_up']:.1f}%")
-                    st.write("**Feature Weights (Logistic Coefficients):**")
+                    st.write("**Feature Weights (Standardized Beta Coefficients):**")
                     st.dataframe(logit_res['coefficients'])
                 else:
                     st.warning(logit_err)
@@ -119,6 +119,11 @@ if st.button("Run Live Scan"):
                     st.dataframe(pca_res['components'])
                 else:
                     st.warning(pca_err)
+
+            st.caption(
+                "💡 **Model Convergence Note:** The 3-Month Macro Framework Heuristic evaluates fundamental policy gap (Taylor Rule) "
+                "over a 90-day horizon, while the Logistic Classifier computes a rolling 30-day statistical probability based on 5-year historical returns."
+            )
         else:
             st.warning(f"Could not initialize statistical models: {hist_err}")
 
