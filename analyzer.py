@@ -1,101 +1,119 @@
-def analyze_macro_framework(macro_data, dxy_change):
-    # Retrieve macro indicators safely with default fallbacks
-    gdp = macro_data.get("gdp_growth", 2.0)
-    cpi = macro_data.get("cpi", 2.0)
-    unemp = macro_data.get("unemployment", 4.0)
-    spread = macro_data.get("yield_spread", 0.0)
-    fed_rate = macro_data.get("fed_rate", 3.0)
+import numpy as np
+import pandas as pd
+from statsmodels.tsa.arima.model import ARIMA
+from sklearn.linear_model import LogisticRegression
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 
-    # 1. Real Interest Rate
-    real_rate = fed_rate - cpi
+def run_arima_forecast(series_data, steps=3, order=(1, 1, 1)):
+    """Fits an ARIMA model on a continuous time series and forecasts future periods."""
+    try:
+        clean_series = series_data.dropna()
+        if len(clean_series) < 24:
+            return None, "Insufficient time-series length (minimum 24 monthly periods required)."
+            
+        model = ARIMA(clean_series, order=order)
+        fitted = model.fit()
+        forecast = fitted.forecast(steps=steps)
+        return forecast, None
+    except Exception as e:
+        return None, f"ARIMA Convergence Error: {str(e)}"
 
-    # 2. Implied Taylor Rule Target Rate
-    taylor_rate = cpi + 0.5 * (cpi - 2.0) - 0.5 * (unemp - 4.0) + 2.0
-    rate_gap = fed_rate - taylor_rate
+def run_logistic_regression(historical_df):
+    """Trains a Logistic Regression classifier on standardized macro variables to predict next-period DXY direction."""
+    try:
+        df = historical_df.dropna().copy()
+        if len(df) < 30:
+            return None, "Dataset too small for Logistic Regression training (minimum 30 rows required)."
 
-    # 3. Macroeconomic Framework Indicators
-    if gdp > 2.5 and cpi > 3.0:
-        ad_state = "Overheating / Strong Demand Expansion"
-    elif gdp < 1.0 and cpi > 3.0:
-        ad_state = "Contracting Demand / High Price Pressure"
-    elif gdp > 1.5:
-        ad_state = "Moderate & Stable Expansion"
-    else:
-        ad_state = "Weak Demand Growth"
+        # Target: 1 if next month DXY closes higher, 0 otherwise
+        df['Target'] = (df['dxy'].shift(-1) > df['dxy']).astype(int)
+        df = df.iloc[:-1]  # Drop last row with incomplete target
 
-    if cpi > 3.5:
-        sras_state = "High Cost-Push Inflationary Pressure"
-    elif cpi < 2.0:
-        sras_state = "Subdued Production Costs / Low Inflation"
-    else:
-        sras_state = "Balanced Supply-Side Inflation"
+        features = ['real_rate', 'yield_spread', 'gdp_growth', 'unemployment']
+        X = df[features]
+        y = df['Target']
 
-    if unemp < 3.8:
-        lras_gap = "Positive Output Gap (Capacity Constraint)"
-    elif unemp > 4.5:
-        lras_gap = "Negative Output Gap (Labor Capacity Slack)"
-    else:
-        lras_gap = "Operating Near Full Employment Potential"
+        # Apply StandardScaler to equalize feature variances and resolve zero-coefficient bug
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
 
-    # 4. Score & Directional Probability Calculation
-    bullish_score = 0
-    
-    if real_rate > 1.0:
-        bullish_score += 30
-    elif real_rate > 0.0:
-        bullish_score += 15
-    else:
-        bullish_score -= 20
+        clf = LogisticRegression()
+        clf.fit(X_scaled, y)
 
-    if rate_gap > 0.5:
-        bullish_score += 25
-    elif rate_gap < -0.5:
-        bullish_score -= 25
+        # Get directional probability on latest observation
+        latest_observation = scaler.transform(X.iloc[[-1]])
+        prob_up = clf.predict_proba(latest_observation)[0][1]
 
-    if gdp > 2.0 and unemp <= 4.1:
-        bullish_score += 25
-    elif gdp < 1.2:
-        bullish_score -= 20
+        # Standardized Beta Coefficients
+        coef_df = pd.DataFrame({
+            'Feature': features, 
+            'Standardized Impact (Beta)': np.round(clf.coef_[0], 4)
+        })
+        return {'prob_up': prob_up * 100, 'coefficients': coef_df}, None
+    except Exception as e:
+        return None, f"Logistic Regression Error: {str(e)}"
 
-    if spread > 0.1:
-        bullish_score += 20
-    elif spread < -0.2:
-        bullish_score -= 20
+def run_lda_model(historical_df):
+    """Executes Linear Discriminant Analysis (LDA) to classify macro regime."""
+    try:
+        df = historical_df.dropna().copy()
+        if len(df) < 30:
+            return None, "Dataset too small for LDA modeling."
 
-    bullish_prob = max(10, min(90, 50 + (bullish_score / 2)))
-    bearish_prob = 100 - bullish_prob
+        # Define Regimes: 1 = Strong USD, 0 = Neutral/Range, -1 = Weak USD
+        returns = df['dxy'].pct_change()
+        df['Regime'] = 0
+        df.loc[returns > 0.01, 'Regime'] = 1
+        df.loc[returns < -0.01, 'Regime'] = -1
+        df = df.dropna()
 
-    if bullish_score >= 25:
-        forecast_direction = "BULLISH (3M Outlook)"
-        bias_symbol = "🚀"
-        trade_recommendation = (
-            "Look for dip-buying opportunities in USD pairs (e.g., Short EUR/USD, Short GBP/USD). "
-            "Positive real rates and growth outperformance support capital inflows into USD assets."
+        features = ['real_rate', 'yield_spread', 'gdp_growth']
+        X = df[features]
+        y = df['Regime']
+
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+
+        lda = LinearDiscriminantAnalysis()
+        lda.fit(X_scaled, y)
+
+        latest_observation = scaler.transform(X.iloc[[-1]])
+        predicted_regime = lda.predict(latest_observation)[0]
+        regime_probs = lda.predict_proba(latest_observation)[0]
+
+        return {
+            'regime': predicted_regime,
+            'probabilities': regime_probs,
+            'classes': lda.classes_
+        }, None
+    except Exception as e:
+        return None, f"LDA Model Error: {str(e)}"
+
+def run_pca_decomposition(historical_df):
+    """Extracts principal components across macro parameters to isolate key structural drivers."""
+    try:
+        df = historical_df.dropna().copy()
+        features = ['fed_rate', 'cpi', 'unemployment', 'yield_spread', 'gdp_growth']
+        X = df[features]
+
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+
+        pca = PCA(n_components=2)
+        pca.fit(X_scaled)
+
+        explained_var = pca.explained_variance_ratio_ * 100
+        components_df = pd.DataFrame(
+            pca.components_, 
+            columns=features, 
+            index=['PC1 (Policy & Rate Factor)', 'PC2 (Growth & Labor Factor)']
         )
-    elif bullish_score <= -25:
-        forecast_direction = "BEARISH (3M Outlook)"
-        bias_symbol = "📉"
-        trade_recommendation = (
-            "Reduce long USD exposure or structure rallies as selling opportunities. "
-            "Negative real rates or policy easing expectations create macro headwinds for DXY."
-        )
-    else:
-        forecast_direction = "NEUTRAL / RANGE-BOUND"
-        bias_symbol = "↔️"
-        trade_recommendation = (
-            "Trade key technical support and resistance bounds. Current real rate cushion "
-            "is insufficient to establish a sustained multi-month trend."
-        )
 
-    return {
-        "bias": f"{forecast_direction} {bias_symbol}",
-        "bullish_prob": bullish_prob,
-        "bearish_prob": bearish_prob,
-        "recommendation": trade_recommendation,
-        "ad_state": ad_state,
-        "sras_state": sras_state,
-        "lras_gap": lras_gap,
-        "real_rate": real_rate,
-        "taylor_rate": taylor_rate,
-        "rate_gap": rate_gap
-    }
+        return {
+            'explained_variance': explained_var,
+            'components': np.round(components_df, 4)
+        }, None
+    except Exception as e:
+        return None, f"PCA Error: {str(e)}"
