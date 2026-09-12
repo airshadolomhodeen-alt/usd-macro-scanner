@@ -1,0 +1,7 @@
+streamlit
+fredapi
+yfinance
+feedparser
+textblob
+pandas
+plotly
