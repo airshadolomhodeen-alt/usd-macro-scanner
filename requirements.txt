@@ -1,5 +1,7 @@
 streamlit
+pandas
 yfinance
 fredapi
-plotly
 feedparser
+statsmodels
+scikit-learn
