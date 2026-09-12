@@ -1,7 +1,5 @@
 streamlit
-fredapi
 yfinance
-feedparser
-textblob
-pandas
+fredapi
 plotly
+feedparser
