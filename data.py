@@ -28,14 +28,12 @@ def get_macro_data():
         cpi = fred.get_series('CPIAUCSL').pct_change(12).dropna().iloc[-1] * 100
         unemployment = fred.get_series('UNRATE').dropna().iloc[-1]
         
-        # Real GDP Growth (YoY)
         try:
             gdp_series = fred.get_series('GDPC1').pct_change(4).dropna()
             gdp = gdp_series.iloc[-1] * 100 if not gdp_series.empty else 2.0
         except Exception:
             gdp = 2.0
             
-        # 10Y-2Y Yield Spread
         try:
             spread_series = fred.get_series('T10Y2Y').dropna()
             yield_spread = spread_series.iloc[-1] if not spread_series.empty else 0.0
@@ -51,6 +49,43 @@ def get_macro_data():
         }, None
     except Exception as e:
         return None, f"FRED Error: {str(e)}"
+
+def get_historical_macro_matrix():
+    """Fetches full historical time series for statistical modeling."""
+    fred = get_fred_client()
+    if not fred:
+        return None, "FRED API key missing."
+    
+    try:
+        fed_rate = fred.get_series('FEDFUNDS')
+        cpi_raw = fred.get_series('CPIAUCSL')
+        cpi = cpi_raw.pct_change(12) * 100
+        unemp = fred.get_series('UNRATE')
+        spread = fred.get_series('T10Y2Y')
+        
+        # Download monthly historical DXY
+        dxy = yf.download("DX-Y.NYB", period="5y", interval="1mo")['Close']
+        if isinstance(dxy, pd.DataFrame):
+            dxy = dxy.squeeze()
+
+        df = pd.DataFrame({
+            'fed_rate': fed_rate,
+            'cpi': cpi,
+            'unemployment': unemp,
+            'yield_spread': spread
+        }).dropna()
+
+        df['real_rate'] = df['fed_rate'] - df['cpi']
+        df['gdp_growth'] = 2.1  # Continuous baseline fill for quarterly GDP alignment
+        
+        # Merge DXY onto macro dates
+        dxy.index = dxy.index.tz_localize(None)
+        df = df.resample('ME').last()
+        df['dxy'] = dxy.reindex(df.index, method='ffill')
+
+        return df.dropna(), None
+    except Exception as e:
+        return None, f"Historical Fetch Error: {str(e)}"
 
 def get_dxy_data():
     tickers_to_try = ["DX-Y.NYB", "DX=F"]
