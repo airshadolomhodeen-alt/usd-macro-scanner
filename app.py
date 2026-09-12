@@ -1,10 +1,5 @@
 import streamlit as st
-from data import (
-    get_macro_data, 
-    get_dxy_data, 
-    get_forexfactory_usd_events, 
-    get_investing_usd_news
-)
+from data import get_macro_data, get_dxy_data, get_forexfactory_usd_events, get_investing_usd_news
 from analyzer import analyze_macro_framework
 
 st.set_page_config(page_title="USD Real-Time Macro Scanner", layout="wide")
@@ -13,19 +8,13 @@ st.title("USD Real-Time Macro Scanner")
 
 if st.button("Run Live Scan"):
     with st.spinner("Fetching macro indicators, DXY spot price, and USD news..."):
-        # 1. Fetch FRED Macro Indicators
         macro_metrics, error = get_macro_data()
-        
-        # 2. Fetch DXY Spot Data
         dxy_price, dxy_change = get_dxy_data()
-        
-        # 3. Fetch News Feeds
         ff_events = get_forexfactory_usd_events()
         investing_news = get_investing_usd_news()
 
     st.subheader("USD Macro Condition")
     
-    # Render Metrics in Columns
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -43,7 +32,6 @@ if st.button("Run Live Scan"):
         with col4:
             st.metric(label="Unemployment Rate", value=f"{macro_metrics['unemployment']:.1f}%")
 
-        # 4. Run Analysis Engine
         analysis = analyze_macro_framework(macro_metrics, dxy_change)
 
         st.divider()
@@ -68,7 +56,6 @@ if st.button("Run Live Scan"):
 
     st.divider()
 
-    # Render Side-by-Side News Tabs
     st.subheader("USD News & Economic Calendar")
     tab1, tab2 = st.tabs(["ForexFactory Calendar", "Investing.com Breaking News"])
 
