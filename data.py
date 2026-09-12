@@ -51,7 +51,7 @@ def get_macro_data():
         return None, f"FRED Error: {str(e)}"
 
 def get_historical_macro_matrix():
-    """Fetches full historical time series for statistical modeling."""
+    """Fetches full historical time series matrix for statistical modeling."""
     fred = get_fred_client()
     if not fred:
         return None, "FRED API key missing."
@@ -63,8 +63,7 @@ def get_historical_macro_matrix():
         unemp = fred.get_series('UNRATE')
         spread = fred.get_series('T10Y2Y')
         
-        # Download monthly historical DXY
-        dxy = yf.download("DX-Y.NYB", period="5y", interval="1mo")['Close']
+        dxy = yf.download("DX-Y.NYB", period="5y", interval="1mo", progress=False)['Close']
         if isinstance(dxy, pd.DataFrame):
             dxy = dxy.squeeze()
 
@@ -76,9 +75,8 @@ def get_historical_macro_matrix():
         }).dropna()
 
         df['real_rate'] = df['fed_rate'] - df['cpi']
-        df['gdp_growth'] = 2.1  # Continuous baseline fill for quarterly GDP alignment
+        df['gdp_growth'] = 2.1
         
-        # Merge DXY onto macro dates
         dxy.index = dxy.index.tz_localize(None)
         df = df.resample('ME').last()
         df['dxy'] = dxy.reindex(df.index, method='ffill')
@@ -117,9 +115,9 @@ def get_forexfactory_usd_events():
             if len(events) >= 5:
                 break
     except Exception as e:
-        events.append(f"• Could not load ForexFactory calendar: {str(e)}")
+        events.append(f"• Calendar parsing temporarily unavailable: {str(e)}")
     if not events:
-        events.append("• No immediate USD calendar events scheduled.")
+        events.append("• No immediate high-impact USD economic events scheduled for today.")
     return events
 
 def get_investing_usd_news():
@@ -141,5 +139,5 @@ def get_investing_usd_news():
             if len(news) >= 5:
                 break
     except Exception as e:
-        print(f"Investing.com RSS Error: {e}")
+        print(f"Investing RSS Error: {e}")
     return news
