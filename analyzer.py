@@ -5,36 +5,45 @@ def analyze_macro_framework(macro_data, dxy_change):
     spread = macro_data.get("yield_spread", 0.0)
     fed_rate = macro_data.get("fed_rate", 3.0)
 
-    # 1. Macroeconomic State Assessment
-    if gdp > 2.5 and cpi > 3.0:
-        ad_state = "Overheating / Expansionary AD (Demand-pull pressure)"
-        sras_state = "Input Cost Pressure Rising (Upward SRAS shifts)"
-    elif gdp < 1.0 and cpi > 3.0:
-        ad_state = "Contracting Demand / Stagnant Real Output"
-        sras_state = "Stagflationary Shift (SRAS shifting left)"
-    else:
-        ad_state = "Moderate Aggregate Demand Alignment"
-        sras_state = "Stable Supply Conditions"
-
-    # 2. Output Gap relative to LRAS (Unemployment vs NAIRU ~4.0%)
-    if unemp < 3.8:
-        lras_gap = "Positive Output Gap (Y > Y_potential) — Tight labor market"
-    elif unemp > 4.5:
-        lras_gap = "Negative Output Gap (Y < Y_potential) — Slack in capacity"
-    else:
-        lras_gap = "At Potential Output (Y ≈ Y_potential)"
-
-    # 3. Policy Alignment & Final USD Outlook
+    # Calculate Real Fed Funds Rate
     real_rate = fed_rate - cpi
+
+    # Aggregate Demand Assessment
+    if gdp > 2.5 and cpi > 3.0:
+        ad_state = "Overheating / Strong Demand Expansion"
+    elif gdp < 1.0 and cpi > 3.0:
+        ad_state = "Contracting Demand / High Price Pressure"
+    elif gdp > 1.5:
+        ad_state = "Moderate & Stable Expansion"
+    else:
+        ad_state = "Weak Demand Growth"
+
+    # SRAS Assessment
+    if cpi > 3.5:
+        sras_state = "High Cost-Push Inflationary Pressure"
+    elif cpi < 2.0:
+        sras_state = "Subdued Production Costs / Low Inflation"
+    else:
+        sras_state = "Balanced Supply-Side Inflation"
+
+    # LRAS Gap Assessment (NAIRU ~ 4.0%)
+    if unemp < 3.8:
+        lras_gap = "Positive Output Gap (Capacity Constraint)"
+    elif unemp > 4.5:
+        lras_gap = "Negative Output Gap (Labor Capacity Slack)"
+    else:
+        lras_gap = "Operating Near Full Employment Potential"
+
+    # Strategic Currency Guidance
     if real_rate > 1.0 and spread > -0.2:
         bias = "BULLISH USD 🚀"
-        recommendation = "Maintain Long USD positions or favor USD pairs (e.g., Short EUR/USD). Tight monetary stance with stable growth supports capital inflows."
-    elif real_rate < 0 or spread < -0.5:
+        recommendation = "Maintain Long USD exposure or target rallies against lower-yielding currencies. Real yields remain restrictive and growth holds steady."
+    elif real_rate < 0.0 or spread < -0.5:
         bias = "BEARISH USD 📉"
-        recommendation = "Reduce USD exposure. Negative real interest rates or inverted yield curves signal economic deceleration and potential policy easing."
+        recommendation = "Reduce USD exposure or seek Short opportunities. Yield curve inversion or negative real rates indicate policy headwinds."
     else:
-        bias = "NEUTRAL / RANGE-BOUND ↔️"
-        recommendation = "Trade ranges. Macro factors balance each other without a clear directional driver."
+        bias = "NEUTRAL / RANGE ↔️"
+        recommendation = "Trade macro range bounds. Counterbalancing economic drivers provide no immediate multi-week bias."
 
     return {
         "bias": bias,
