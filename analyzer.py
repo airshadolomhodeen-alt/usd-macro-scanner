@@ -1,4 +1,5 @@
 def analyze_macro_framework(macro_data, dxy_change):
+    # Retrieve macro indicators safely with default fallbacks
     gdp = macro_data.get("gdp_growth", 2.0)
     cpi = macro_data.get("cpi", 2.0)
     unemp = macro_data.get("unemployment", 4.0)
@@ -36,7 +37,7 @@ def analyze_macro_framework(macro_data, dxy_change):
     else:
         lras_gap = "Operating Near Full Employment Potential"
 
-    # 4. Score & Probability Calculation
+    # 4. Score & Directional Probability Calculation
     bullish_score = 0
     
     if real_rate > 1.0:
