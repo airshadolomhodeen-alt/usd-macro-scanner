@@ -5,10 +5,14 @@ def analyze_macro_framework(macro_data, dxy_change):
     spread = macro_data.get("yield_spread", 0.0)
     fed_rate = macro_data.get("fed_rate", 3.0)
 
-    # Calculate Real Fed Funds Rate
+    # 1. Core Real Yield Analysis
     real_rate = fed_rate - cpi
 
-    # Aggregate Demand Assessment
+    # 2. Implied Taylor Rule Neutral Rate (Target = Inflation + 0.5*(Inflation - 2) - 0.5*(Unemployment - 4) + 2)
+    taylor_rate = cpi + 0.5 * (cpi - 2.0) - 0.5 * (unemp - 4.0) + 2.0
+    rate_gap = fed_rate - taylor_rate  # Positive means Fed is hawkish relative to economic slack
+
+    # 3. Macroeconomic Framework Indicators
     if gdp > 2.5 and cpi > 3.0:
         ad_state = "Overheating / Strong Demand Expansion"
     elif gdp < 1.0 and cpi > 3.0:
@@ -18,7 +22,6 @@ def analyze_macro_framework(macro_data, dxy_change):
     else:
         ad_state = "Weak Demand Growth"
 
-    # SRAS Assessment
     if cpi > 3.5:
         sras_state = "High Cost-Push Inflationary Pressure"
     elif cpi < 2.0:
@@ -26,7 +29,6 @@ def analyze_macro_framework(macro_data, dxy_change):
     else:
         sras_state = "Balanced Supply-Side Inflation"
 
-    # LRAS Gap Assessment (NAIRU ~ 4.0%)
     if unemp < 3.8:
         lras_gap = "Positive Output Gap (Capacity Constraint)"
     elif unemp > 4.5:
@@ -34,22 +36,62 @@ def analyze_macro_framework(macro_data, dxy_change):
     else:
         lras_gap = "Operating Near Full Employment Potential"
 
-    # Strategic Currency Guidance
-    if real_rate > 1.0 and spread > -0.2:
-        bias = "BULLISH USD 🚀"
-        recommendation = "Maintain Long USD exposure or target rallies against lower-yielding currencies. Real yields remain restrictive and growth holds steady."
-    elif real_rate < 0.0 or spread < -0.5:
-        bias = "BEARISH USD 📉"
-        recommendation = "Reduce USD exposure or seek Short opportunities. Yield curve inversion or negative real rates indicate policy headwinds."
+    # 4. Quantitative Score Calculation (-100 to +100)
+    bullish_score = 0
+    
+    # Real Rate Weight (+30)
+    if real_rate > 1.0: bullish_score += 30
+    elif real_rate > 0.0: bullish_score += 15
+    else: bullish_score -= 20
+
+    # Policy Gap Weight (+25)
+    if rate_gap > 0.5: bullish_score += 25  # Fed tighter than Taylor target = Strong Dollar
+    elif rate_gap < -0.5: bullish_score -= 25
+
+    # Growth & Labor Weight (+25)
+    if gdp > 2.0 and unemp <= 4.1: bullish_score += 25
+    elif gdp < 1.2: bullish_score -= 20
+
+    # Yield Curve Momentum Weight (+20)
+    if spread > 0.1: bullish_score += 20    # Un-inverted / Healthy curve
+    elif spread < -0.2: bullish_score -= 20
+
+    # Convert Score to Forecast Probability
+    bullish_prob = max(10, min(90, 50 + (bullish_score / 2)))
+    bearish_prob = 100 - bullish_prob
+
+    # Directional Forecast
+    if bullish_score >= 25:
+        forecast_direction = "BULLISH (3M Outlook)"
+        bias_symbol = "🚀"
+        trade_recommendation = (
+            "Look for dip-buying opportunities in USD pairs (e.g., Short EUR/USD, Short GBP/USD). "
+            "Positive real rates and growth outperformance support capital inflows into USD assets."
+        )
+    elif bullish_score <= -25:
+        forecast_direction = "BEARISH (3M Outlook)"
+        bias_symbol = "📉"
+        trade_recommendation = (
+            "Reduce long USD exposure or structure rallies as selling opportunities. "
+            "Negative real rates or policy easing expectations create macro headwinds for DXY."
+        )
     else:
-        bias = "NEUTRAL / RANGE ↔️"
-        recommendation = "Trade macro range bounds. Counterbalancing economic drivers provide no immediate multi-week bias."
+        forecast_direction = "NEUTRAL / RANGE-BOUND"
+        bias_symbol = "↔️"
+        trade_recommendation = (
+            "Trade key technical support and resistance bounds. Current real rate cushion "
+            "is insufficient to establish a sustained multi-month trend."
+        )
 
     return {
-        "bias": bias,
-        "recommendation": recommendation,
+        "bias": f"{forecast_direction} {bias_symbol}",
+        "bullish_prob": bullish_prob,
+        "bearish_prob": bearish_prob,
+        "recommendation": trade_recommendation,
         "ad_state": ad_state,
         "sras_state": sras_state,
         "lras_gap": lras_gap,
-        "real_rate": real_rate
+        "real_rate": real_rate,
+        "taylor_rate": taylor_rate,
+        "rate_gap": rate_gap
     }
