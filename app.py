@@ -13,8 +13,7 @@ if st.button("Run Live Scan"):
         ff_events = get_forexfactory_usd_events()
         investing_news = get_investing_usd_news()
 
-    st.subheader("USD Macro Condition")
-    
+    st.subheader("USD Spot & Core Macro Drivers")
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -35,22 +34,41 @@ if st.button("Run Live Scan"):
         analysis = analyze_macro_framework(macro_metrics, dxy_change)
 
         st.divider()
-        st.subheader("Institutional Macroeconomic Analysis & Recommendation")
+        st.subheader("USD 3-Month Directional Forecast & Probability Engine")
         
         col_a, col_b = st.columns([1, 2])
         with col_a:
-            st.info(f"**USD Macro Outlook:** {analysis['bias']}")
-            st.metric("Real Fed Funds Rate", f"{analysis['real_rate']:.2f}%")
+            st.info(f"**Projected USD Direction:** {analysis['bias']}")
+            st.write(f"**Bullish Probability:** {analysis['bullish_prob']:.0f}%")
+            st.progress(int(analysis['bullish_prob']))
+            st.write(f"**Bearish Probability:** {analysis['bearish_prob']:.0f}%")
             
-        with col_b:
-            st.write(f"**Strategic Recommendation:** {analysis['recommendation']}")
+            st.metric("Real Fed Funds Rate", f"{analysis['real_rate']:.2f}%")
+            st.metric("Implied Taylor Rule Target Rate", f"{analysis['taylor_rate']:.2f}%")
 
-        with st.expander("Macroeconomic Framework Indicators (AD / SRAS / LRAS)", expanded=True):
+        with col_b:
+            st.markdown("### Strategic Execution Recommendation")
+            st.write(analysis['recommendation'])
+            
+            st.markdown("---")
+            st.markdown("### Tactical Trading Guidance")
+            if "BULLISH" in analysis['bias']:
+                st.success("• **Primary Trade:** Long USD/JPY or Short EUR/USD on 4H pullbacks.")
+                st.write("• **Macro Driver:** Positive real yields and monetary policy tightness relative to economic slack.")
+            elif "BEARISH" in analysis['bias']:
+                st.error("• **Primary Trade:** Long EUR/USD or Long Gold (XAU/USD).")
+                st.write("• **Macro Driver:** Real yields compressed or policy easing priced in.")
+            else:
+                st.warning("• **Primary Trade:** Range-trading strategies / Mean-reversion.")
+                st.write("• **Macro Driver:** Real interest rate cushion of 0.28% maintains equilibrium without strong momentum.")
+
+        with st.expander("Detailed Macroeconomic Framework (AD / SRAS / LRAS)", expanded=True):
             st.write(f"• **Aggregate Demand (AD):** {analysis['ad_state']}")
             st.write(f"• **Short-Run Supply (SRAS):** {analysis['sras_state']}")
             st.write(f"• **Capacity vs. LRAS:** {analysis['lras_gap']}")
             st.write(f"• **Real GDP Growth (YoY):** {macro_metrics['gdp_growth']:.2f}%")
             st.write(f"• **Yield Curve (10Y-2Y Spread):** {macro_metrics['yield_spread']:.2f}%")
+            st.write(f"• **Policy Rate Gap (Actual vs. Taylor):** {analysis['rate_gap']:+.2f}%")
     else:
         st.error(error)
 
