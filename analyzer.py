@@ -5,12 +5,12 @@ def analyze_macro_framework(macro_data, dxy_change):
     spread = macro_data.get("yield_spread", 0.0)
     fed_rate = macro_data.get("fed_rate", 3.0)
 
-    # 1. Core Real Yield Analysis
+    # 1. Real Interest Rate
     real_rate = fed_rate - cpi
 
-    # 2. Implied Taylor Rule Neutral Rate (Target = Inflation + 0.5*(Inflation - 2) - 0.5*(Unemployment - 4) + 2)
+    # 2. Implied Taylor Rule Target Rate
     taylor_rate = cpi + 0.5 * (cpi - 2.0) - 0.5 * (unemp - 4.0) + 2.0
-    rate_gap = fed_rate - taylor_rate  # Positive means Fed is hawkish relative to economic slack
+    rate_gap = fed_rate - taylor_rate
 
     # 3. Macroeconomic Framework Indicators
     if gdp > 2.5 and cpi > 3.0:
@@ -36,31 +36,34 @@ def analyze_macro_framework(macro_data, dxy_change):
     else:
         lras_gap = "Operating Near Full Employment Potential"
 
-    # 4. Quantitative Score Calculation (-100 to +100)
+    # 4. Score & Probability Calculation
     bullish_score = 0
     
-    # Real Rate Weight (+30)
-    if real_rate > 1.0: bullish_score += 30
-    elif real_rate > 0.0: bullish_score += 15
-    else: bullish_score -= 20
+    if real_rate > 1.0:
+        bullish_score += 30
+    elif real_rate > 0.0:
+        bullish_score += 15
+    else:
+        bullish_score -= 20
 
-    # Policy Gap Weight (+25)
-    if rate_gap > 0.5: bullish_score += 25  # Fed tighter than Taylor target = Strong Dollar
-    elif rate_gap < -0.5: bullish_score -= 25
+    if rate_gap > 0.5:
+        bullish_score += 25
+    elif rate_gap < -0.5:
+        bullish_score -= 25
 
-    # Growth & Labor Weight (+25)
-    if gdp > 2.0 and unemp <= 4.1: bullish_score += 25
-    elif gdp < 1.2: bullish_score -= 20
+    if gdp > 2.0 and unemp <= 4.1:
+        bullish_score += 25
+    elif gdp < 1.2:
+        bullish_score -= 20
 
-    # Yield Curve Momentum Weight (+20)
-    if spread > 0.1: bullish_score += 20    # Un-inverted / Healthy curve
-    elif spread < -0.2: bullish_score -= 20
+    if spread > 0.1:
+        bullish_score += 20
+    elif spread < -0.2:
+        bullish_score -= 20
 
-    # Convert Score to Forecast Probability
     bullish_prob = max(10, min(90, 50 + (bullish_score / 2)))
     bearish_prob = 100 - bullish_prob
 
-    # Directional Forecast
     if bullish_score >= 25:
         forecast_direction = "BULLISH (3M Outlook)"
         bias_symbol = "🚀"
