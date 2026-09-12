@@ -38,49 +38,59 @@ if st.button("Run Live Scan"):
         
         col_a, col_b = st.columns([1, 2])
         with col_a:
-            st.info(f"**Projected USD Direction:** {analysis['bias']}")
-            st.write(f"**Bullish Probability:** {analysis['bullish_prob']:.0f}%")
-            st.progress(int(analysis['bullish_prob']))
-            st.write(f"**Bearish Probability:** {analysis['bearish_prob']:.0f}%")
+            st.info(f"**Projected USD Direction:** {analysis.get('bias', 'NEUTRAL / RANGE-BOUND ↔️')}")
             
-            st.metric("Real Fed Funds Rate", f"{analysis['real_rate']:.2f}%")
-            st.metric("Implied Taylor Rule Target Rate", f"{analysis['taylor_rate']:.2f}%")
+            # Safe rendering with fallback values
+            bullish_p = float(analysis.get('bullish_prob', 50))
+            bearish_p = float(analysis.get('bearish_prob', 50))
+            
+            st.write(f"**Bullish Probability:** {bullish_p:.0f}%")
+            st.progress(int(bullish_p))
+            st.write(f"**Bearish Probability:** {bearish_p:.0f}%")
+            
+            st.metric("Real Fed Funds Rate", f"{analysis.get('real_rate', 0.0):.2f}%")
+            st.metric("Implied Taylor Rule Target Rate", f"{analysis.get('taylor_rate', 0.0):.2f}%")
 
         with col_b:
             st.markdown("### Strategic Execution Recommendation")
-            st.write(analysis['recommendation'])
+            st.write(analysis.get('recommendation', 'Trade macro range bounds.'))
             
             st.markdown("---")
             st.markdown("### Tactical Trading Guidance")
-            if "BULLISH" in analysis['bias']:
+            bias_str = str(analysis.get('bias', 'NEUTRAL'))
+            if "BULLISH" in bias_str:
                 st.success("• **Primary Trade:** Long USD/JPY or Short EUR/USD on 4H pullbacks.")
                 st.write("• **Macro Driver:** Positive real yields and monetary policy tightness relative to economic slack.")
-            elif "BEARISH" in analysis['bias']:
+            elif "BEARISH" in bias_str:
                 st.error("• **Primary Trade:** Long EUR/USD or Long Gold (XAU/USD).")
                 st.write("• **Macro Driver:** Real yields compressed or policy easing priced in.")
             else:
                 st.warning("• **Primary Trade:** Range-trading strategies / Mean-reversion.")
-                st.write("• **Macro Driver:** Real interest rate cushion of 0.28% maintains equilibrium without strong momentum.")
+                st.write("• **Macro Driver:** Real interest rate cushion maintains equilibrium without strong momentum.")
 
         with st.expander("Detailed Macroeconomic Framework (AD / SRAS / LRAS)", expanded=True):
-            st.write(f"• **Aggregate Demand (AD):** {analysis['ad_state']}")
-            st.write(f"• **Short-Run Supply (SRAS):** {analysis['sras_state']}")
-            st.write(f"• **Capacity vs. LRAS:** {analysis['lras_gap']}")
-            st.write(f"• **Real GDP Growth (YoY):** {macro_metrics['gdp_growth']:.2f}%")
-            st.write(f"• **Yield Curve (10Y-2Y Spread):** {macro_metrics['yield_spread']:.2f}%")
-            st.write(f"• **Policy Rate Gap (Actual vs. Taylor):** {analysis['rate_gap']:+.2f}%")
+            st.write(f"• **Aggregate Demand (AD):** {analysis.get('ad_state', 'N/A')}")
+            st.write(f"• **Short-Run Supply (SRAS):** {analysis.get('sras_state', 'N/A')}")
+            st.write(f"• **Capacity vs. LRAS:** {analysis.get('lras_gap', 'N/A')}")
+            st.write(f"• **Real GDP Growth (YoY):** {macro_metrics.get('gdp_growth', 2.0):.2f}%")
+            st.write(f"• **Yield Curve (10Y-2Y Spread):** {macro_metrics.get('yield_spread', 0.0):.2f}%")
+            st.write(f"• **Policy Rate Gap (Actual vs. Taylor):** {analysis.get('rate_gap', 0.0):+.2f}%")
     else:
         st.error(error)
 
     st.divider()
 
+    # ForexFactory and Investing.com feeds
     st.subheader("USD News & Economic Calendar")
     tab1, tab2 = st.tabs(["ForexFactory Calendar", "Investing.com Breaking News"])
 
     with tab1:
         st.markdown("### Upcoming USD Economic Events")
-        for event in ff_events:
-            st.markdown(event)
+        if ff_events:
+            for event in ff_events:
+                st.markdown(event)
+        else:
+            st.write("No ForexFactory events loaded.")
 
     with tab2:
         st.markdown("### USD & Fed Market Headlines")
