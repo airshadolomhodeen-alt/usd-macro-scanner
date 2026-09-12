@@ -1,39 +1,64 @@
 import streamlit as st
-from data import get_fred_metrics, get_dxy_market_data, get_macro_news_sentiment
-from analyzer import run_macro_analysis
+from data import (
+    get_macro_data, 
+    get_dxy_data, 
+    get_forexfactory_usd_events, 
+    get_investing_usd_news
+)
 
-st.set_page_config(page_title="USD Macro Condition Scanner", layout="wide")
+st.set_page_config(page_title="USD Real-Time Macro Scanner", layout="wide")
 
 st.title("USD Real-Time Macro Scanner")
 
-if st.button("Run Live Scan", type="primary"):
-    with st.spinner("Fetching macro data & computing scores..."):
-        fred_data = get_fred_metrics()
-        dxy_data = get_dxy_market_data()
-        news_data = get_macro_news_sentiment()
+if st.button("Run Live Scan"):
+    with st.spinner("Fetching macro indicators, DXY spot price, and USD news..."):
+        # 1. Fetch FRED Macro Indicators
+        macro_metrics, error = get_macro_data()
         
-        condition, score, drivers = run_macro_analysis(fred_data, dxy_data, news_data)
+        # 2. Fetch DXY Spot Data
+        dxy_price, dxy_change = get_dxy_data()
         
-        st.subheader("USD Macro Condition")
-        if "Bullish" in condition:
-            st.success(f"{condition} (Score: {score})")
-        elif "Bearish" in condition:
-            st.error(f"{condition} (Score: {score})")
+        # 3. Fetch News Feeds
+        ff_events = get_forexfactory_usd_events()
+        investing_news = get_investing_usd_news()
+
+    st.subheader("USD Macro Condition")
+    
+    # Render Metrics in Columns
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric(
+            label="DXY Spot Price", 
+            value=f"${dxy_price:.2f}" if dxy_price > 0 else "N/A", 
+            delta=f"{dxy_change:+.2f}% (1M)" if dxy_price > 0 else None
+        )
+        
+    if macro_metrics:
+        with col2:
+            st.metric(label="Fed Funds Rate", value=f"{macro_metrics['fed_rate']:.2f}%")
+        with col3:
+            st.metric(label="CPI Inflation (YoY)", value=f"{macro_metrics['cpi']:.2f}%")
+        with col4:
+            st.metric(label="Unemployment Rate", value=f"{macro_metrics['unemployment']:.1f}%")
+    else:
+        st.error(error)
+
+    st.divider()
+
+    # Render Side-by-Side News Tabs
+    st.subheader("USD News & Economic Calendar")
+    tab1, tab2 = st.tabs(["ForexFactory Calendar", "Investing.com Breaking News"])
+
+    with tab1:
+        st.markdown("### Upcoming USD Economic Events")
+        for event in ff_events:
+            st.markdown(event)
+
+    with tab2:
+        st.markdown("### USD & Fed Market Headlines")
+        if investing_news:
+            for item in investing_news:
+                st.markdown(f"• [{item['title']}]({item['link']}) — *{item['published']}*")
         else:
-            st.warning(f"{condition} (Score: {score})")
-            
-        col1, col2, col3, col4 = st.columns(4)
-        if "error" not in fred_data:
-            col1.metric("DXY Spot Price", f"${dxy_data['spot']:.2f}", f"{dxy_data['change_1m']:.2f}%")
-            col2.metric("Fed Funds Rate", f"{fred_data['fed_funds']}%")
-            col3.metric("CPI Inflation (YoY)", f"{fred_data['cpi_yoy']:.2f}%")
-            col4.metric("Unemployment Rate", f"{fred_data['unemployment']}%")
-            
-        st.subheader("Key Macro Drivers")
-        for driver in drivers:
-            st.write(f"- {driver}")
-            
-        if news_data["headlines"]:
-            st.subheader("Recent Headlines")
-            for h in news_data["headlines"]:
-                st.write(f"• {h}")
+            st.write("No USD-specific headlines found at this moment.")
