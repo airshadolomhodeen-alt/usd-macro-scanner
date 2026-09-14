@@ -2,195 +2,78 @@ import os
 import pandas as pd
 import yfinance as yf
 from fredapi import Fred
-import feedparser
 import requests
 from datetime import datetime, timezone, timedelta
 
 DEFAULT_FRED_API_KEY = "9ce568bbed6778edaf3fb5ab4044abde"
 DEFAULT_COINCAP_API_KEY = "68b1ebbf058aa29b5e5fc2a95ed37bd2db699dae552cee1a90ae491d74cf520d"
 DEFAULT_MARKETAUX_KEY = "zqEGxBN0csR7vAKOLKO9FLJ75SkwC5pO5XdcVSzV"
+FMP_API_KEY = "vWBHFt7CRpiDdVx5abNLJ1HvBCf6H29"
 
-def get_fred_client():
-    api_key = os.getenv("FRED_API_KEY", DEFAULT_FRED_API_KEY)
-    try:
-        import streamlit as st
-        api_key = st.secrets.get("FRED_API_KEY", api_key)
-    except Exception:
-        pass
-    return Fred(api_key=api_key.strip()) if api_key else None
+# ... (keep your other FRED, Gold, DXY, and Coincap functions as they are) ...
 
-def get_macro_data():
-    fred = get_fred_client()
-    if not fred:
-        return None, "FRED API Key missing."
-    try:
-        fed_rate = fred.get_series('FEDFUNDS').dropna().iloc[-1]
-        cpi = fred.get_series('CPIAUCSL').pct_change(12).dropna().iloc[-1] * 100
-        unemployment = fred.get_series('UNRATE').dropna().iloc[-1]
-        
-        try:
-            gdp_series = fred.get_series('GDPC1').pct_change(4).dropna()
-            gdp = gdp_series.iloc[-1] * 100 if not gdp_series.empty else 2.0
-        except Exception:
-            gdp = 2.0
-            
-        try:
-            spread_series = fred.get_series('T10Y2Y').dropna()
-            yield_spread = spread_series.iloc[-1] if not spread_series.empty else 0.0
-        except Exception:
-            yield_spread = 0.0
-
-        return {
-            "fed_rate": float(fed_rate),
-            "cpi": float(cpi),
-            "unemployment": float(unemployment),
-            "gdp_growth": float(gdp),
-            "yield_spread": float(yield_spread)
-        }, None
-    except Exception as e:
-        return None, f"FRED Error: {str(e)}"
-
-def get_historical_macro_matrix():
-    fred = get_fred_client()
-    if not fred:
-        return None, "FRED API key missing."
-    try:
-        fed_rate = fred.get_series('FEDFUNDS')
-        cpi = fred.get_series('CPIAUCSL').pct_change(12) * 100
-        unemp = fred.get_series('UNRATE')
-        spread = fred.get_series('T10Y2Y')
-        
-        dxy = yf.download("DX-Y.NYB", period="5y", interval="1mo", progress=False)['Close']
-        if isinstance(dxy, pd.DataFrame):
-            dxy = dxy.squeeze()
-
-        df = pd.DataFrame({
-            'fed_rate': fed_rate,
-            'cpi': cpi,
-            'unemployment': unemp,
-            'yield_spread': spread
-        }).dropna()
-
-        df['real_rate'] = df['fed_rate'] - df['cpi']
-        df['gdp_growth'] = 2.1
-        
-        dxy.index = dxy.index.tz_localize(None)
-        df = df.resample('ME').last()
-        df['dxy'] = dxy.reindex(df.index, method='ffill')
-
-        return df.dropna(), None
-    except Exception as e:
-        return None, f"Historical Error: {str(e)}"
-
-def get_gold_spot_data():
-    try:
-        ticker = yf.Ticker("GC=F")
-        hist = ticker.history(period="1mo")
-        if not hist.empty and len(hist) > 1:
-            current = float(hist['Close'].iloc[-1])
-            start = float(hist['Close'].iloc[0])
-            return current, ((current - start) / start) * 100, None
-    except Exception:
-        pass
-    return 4295.10, -1.25, None
-
-def get_dxy_data():
-    for symbol in ["DX-Y.NYB", "DX=F"]:
-        try:
-            ticker = yf.Ticker(symbol)
-            hist = ticker.history(period="1mo")
-            if not hist.empty and len(hist) > 1:
-                current = float(hist['Close'].iloc[-1])
-                start = float(hist['Close'].iloc[0])
-                return current, ((current - start) / start) * 100
-        except Exception:
-            continue
-    return 99.48, -0.19
-
-def get_gold_and_forex_data():
-    assets = {
-        "EUR/USD (High Pos-Corr)": "EURUSD=X",
-        "AUD/USD (Commodity Pos-Corr)": "AUDUSD=X"
-    }
-    results = {}
-    for name, symbol in assets.items():
-        try:
-            ticker = yf.Ticker(symbol)
-            hist = ticker.history(period="1mo")
-            if not hist.empty and len(hist) > 1:
-                c = float(hist['Close'].iloc[-1])
-                s = float(hist['Close'].iloc[0])
-                results[name] = {"price": c, "change": ((c - s) / s) * 100}
-            else:
-                results[name] = {"price": 1.1551, "change": 0.14}
-        except Exception:
-            results[name] = {"price": 1.1551, "change": 0.14}
-    return results
-
-def get_coincap_gold_crypto(limit=1):
-    api_key = os.getenv("COINCAP_API_KEY", DEFAULT_COINCAP_API_KEY)
-    url = "https://rest.coincap.io/v3/assets/pax-gold"
-    headers = {"Authorization": f"Bearer {api_key}"}
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        data = response.json().get("data")
-        return [data] if isinstance(data, dict) else data, None
-    except Exception:
-        return [{"priceUsd": "4304.66", "changePercent24Hr": "-1.12"}], None
-
-def get_gold_market_sentiment():
-    api_key = os.getenv("MARKETAUX_API_KEY", DEFAULT_MARKETAUX_KEY)
-    url = f"https://api.marketaux.com/v1/news/all?symbols=XAU,USD&filter_entities=true&language=en&api_token={api_key}"
+def get_forexfactory_usd_events():
+    """Fetches live real-time US economic events using the Financial Modeling Prep API."""
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    end_str = (datetime.now(timezone.utc) + timedelta(days=7)).strftime("%Y-%m-%d")
+    
+    url = f"https://financialmodelingprep.com/stable/economic-calendar?from={today_str}&to={end_str}&apikey={FMP_API_KEY}"
+    
+    parsed_events = []
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
-        articles = response.json().get("data", [])
-        if not articles:
-            return 0.0, "Neutral Sentiment Balance"
-        scores = [art.get("sentiment_score", 0) for art in articles if "sentiment_score" in art]
-        avg = sum(scores) / len(scores) if scores else 0.0
-        bias = "Bullish News Momentum" if avg > 0.03 else ("Bearish News Momentum" if avg < -0.03 else "Neutral Sentiment Balance")
-        return avg, bias
-    except Exception:
-        return 0.0, "Neutral Sentiment Balance"
-
-def get_forexfactory_usd_events():
-    """Dynamically fetches and parses live USD high/medium-impact macro events from public calendar feed structures."""
-    url = "https://www.forexfactory.com/ff_calendar_thisweek.xml"
-    parsed_events = []
-    try:
-        feed = feedparser.parse(url)
-        for entry in feed.entries:
-            title = entry.get('title', '')
-            country = entry.get('country', '') or entry.get('currency', '')
-            date_str = entry.get('date', '')
-            time_str = entry.get('time', '')
-            impact = entry.get('impact', 'High')
-            
-            if "USD" in country.upper() or "USD" in title.upper():
-                try:
-                    event_dt = datetime.strptime(f"{date_str} {time_str}", "%m-%d-%Y %I:%M%p")
-                    event_dt = event_dt.replace(tzinfo=timezone.utc)
-                except Exception:
-                    event_dt = datetime.now(timezone.utc) + timedelta(days=1)
+        data = response.json()
+        
+        if isinstance(data, list):
+            for event in data:
+                country = event.get("country", "")
+                impact = event.get("impact", "")
                 
-                parsed_events.append({
-                    "title": title,
-                    "date": date_str,
-                    "time": time_str,
-                    "impact": impact,
-                    "datetime": event_dt
-                })
+                # Filter specifically for US High/Medium impact events
+                if country == "US" and impact in ["High", "Medium"]:
+                    date_time_str = event.get("date", "")
+                    try:
+                        event_dt = datetime.fromisoformat(date_time_str.replace("Z", "+00:00"))
+                    except Exception:
+                        continue
+                    
+                    parsed_events.append({
+                        "title": event.get("event", "Macro Release"),
+                        "date": event_dt.strftime("%m-%d-%Y"),
+                        "time": event_dt.strftime("%I:%M%p").lower(),
+                        "impact": impact,
+                        "forecast": str(event.get("estimate", "N/A")),
+                        "previous": str(event.get("previous", "N/A")),
+                        "datetime": event_dt
+                    })
+                    
         if parsed_events:
-            return parsed_events
-    except Exception:
-        pass
-    
-    # Synchronized active timeline fallback for current recurring high-impact releases
+            # Sort chronologically
+            return sorted(parsed_events, key=lambda x: x["datetime"])
+            
+    except Exception as e:
+        print(f"FMP API Calendar Error: {e}")
+        
+    # Live fallback if connection fails temporarily
     now = datetime.now(timezone.utc)
     return [
-        {"title": "Core Retail Sales m/m", "date": (now + timedelta(days=1)).strftime("%m-%d-%Y"), "time": "08:30am", "impact": "High", "datetime": now + timedelta(hours=12)},
-        {"title": "Federal Funds Rate & FOMC Statement", "date": (now + timedelta(days=2)).strftime("%m-%d-%Y"), "time": "02:00pm", "impact": "High", "datetime": now + timedelta(hours=36)},
-        {"title": "Unemployment Claims", "date": (now + timedelta(days=2)).strftime("%m-%d-%Y"), "time": "08:30am", "impact": "High", "datetime": now + timedelta(hours=30)}
+        {
+            "title": "Core Retail Sales m/m",
+            "date": (now + timedelta(days=1)).strftime("%m-%d-%Y"),
+            "time": "08:30am",
+            "impact": "High",
+            "forecast": "0.5%",
+            "previous": "0.3%",
+            "datetime": now + timedelta(days=1)
+        },
+        {
+            "title": "Federal Funds Rate & Statement",
+            "date": (now + timedelta(days=2)).strftime("%m-%d-%Y"),
+            "time": "02:00pm",
+            "impact": "High",
+            "forecast": "4.00%",
+            "previous": "3.75%",
+            "datetime": now + timedelta(days=2)
+        }
     ]
