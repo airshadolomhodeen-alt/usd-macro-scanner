@@ -139,15 +139,46 @@ if historical_df is not None:
 
     st.markdown("---")
     st.subheader("📈 Historical Macro & Trend Visualization")
+    
+    # Dual-axis chart configuration mapping Real Rate vs Gold Spot Price
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=historical_df.index, y=historical_df['real_rate'], mode='lines', name='Real Interest Rate (%)', line=dict(color='orange', width=2)))
-    fig.add_trace(go.Scatter(x=historical_df.index, y=historical_df['fed_rate'], mode='lines', name='Fed Funds Rate (%)', line=dict(color='cyan', width=1.5, dash='dot')))
+    fig.add_trace(go.Scatter(
+        x=historical_df.index, 
+        y=historical_df['real_rate'], 
+        mode='lines', 
+        name='Real Interest Rate (%)', 
+        line=dict(color='orange', width=2)
+    ))
+    
+    if 'gold_price' in historical_df.columns:
+        fig.add_trace(go.Scatter(
+            x=historical_df.index, 
+            y=historical_df['gold_price'], 
+            mode='lines', 
+            name='Gold Spot Price ($/oz)', 
+            yaxis='y2',
+            line=dict(color='#38bdf8', width=2)
+        ))
+
     fig.update_layout(
-        title='Historical Real Interest Rate vs Fed Funds Rate Dynamics',
+        title='Real Interest Rates vs. Historical Gold Spot Price Dynamics',
         xaxis_title='Timeline',
-        yaxis_title='Percentage (%)',
+        yaxis=dict(
+            title='Real Interest Rate (%)',
+            titlefont=dict(color='orange'),
+            tickfont=dict(color='orange')
+        ),
+        yaxis2=dict(
+            title='Gold Spot Price ($)',
+            titlefont=dict(color='#38bdf8'),
+            tickfont=dict(color='#38bdf8'),
+            anchor='x',
+            overlaying='y',
+            side='right'
+        ),
         template='plotly_dark',
-        margin=dict(l=40, r=40, t=40, b=40)
+        margin=dict(l=40, r=40, t=40, b=40),
+        legend=dict(x=0.01, y=0.99)
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -160,22 +191,25 @@ with c_col1:
     events = get_forexfactory_usd_events()
     now_pht = datetime.now(PHT)
     
-    for ev in events:
-        target_dt = ev["datetime"]
-        diff = target_dt - now_pht
-        
-        if diff.total_seconds() > 0:
-            days = diff.days
-            hours, remainder = divmod(diff.seconds, 3600)
-            minutes, seconds = divmod(remainder, 60)
-            if days > 0:
-                countdown_str = f"⏳ **{days}d {hours}h {minutes}m remaining**"
-            else:
-                countdown_str = f"⏳ **{hours}h {minutes}m {seconds}s remaining**"
-        else:
-            countdown_str = "🔴 **Event Released / Live Now**"
+    if events:
+        for ev in events:
+            target_dt = ev["datetime"]
+            diff = target_dt - now_pht
             
-        st.markdown(f"• **{ev['title']}**\n  * 🗓️ Date/Time (PHT): **{ev['date']} at {ev['time']}**\n  * {countdown_str}")
+            if diff.total_seconds() > 0:
+                days = diff.days
+                hours, remainder = divmod(diff.seconds, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                if days > 0:
+                    countdown_str = f"⏳ **{days}d {hours}h {minutes}m remaining**"
+                else:
+                    countdown_str = f"⏳ **{hours}h {minutes}m {seconds}s remaining**"
+            else:
+                countdown_str = "🔴 **Event Released / Live Now**"
+                
+            st.markdown(f"• **{ev['title']}**\n  * 🗓️ Date/Time (PHT): **{ev['date']} at {ev['time']}**\n  * {countdown_str}")
+    else:
+        st.info("No upcoming high-impact US macro events retrieved for the current weekly window.")
 
 with c_col2:
     st.subheader("💡 Macro Economic Framework States")
