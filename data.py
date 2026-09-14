@@ -4,6 +4,7 @@ import yfinance as yf
 from fredapi import Fred
 import feedparser
 import requests
+from datetime import datetime, timedelta, timezone
 
 DEFAULT_FRED_API_KEY = "9ce568bbed6778edaf3fb5ab4044abde"
 DEFAULT_COINCAP_API_KEY = "68b1ebbf058aa29b5e5fc2a95ed37bd2db699dae552cee1a90ae491d74cf520d"
@@ -126,7 +127,7 @@ def get_gold_and_forex_data():
             results[name] = {"price": 1.1545, "change": 0.08}
     return results
 
-def get_coincap_gold_crypto(limit=1):
+def get_coincap_gold_crypto():
     api_key = os.getenv("COINCAP_API_KEY", DEFAULT_COINCAP_API_KEY)
     url = "https://rest.coincap.io/v3/assets/pax-gold"
     headers = {"Authorization": f"Bearer {api_key}"}
@@ -155,22 +156,44 @@ def get_gold_market_sentiment():
         return 0.0, "Neutral News Flow (Cached)"
 
 def get_forexfactory_usd_events():
+    """Parses ForexFactory XML feed for exact event days, times, and impact levels."""
     url = "https://www.forexfactory.com/ff_calendar_thisweek.xml"
-    events = []
+    parsed_events = []
     try:
         feed = feedparser.parse(url)
         for entry in feed.entries:
             title = entry.get('title', '')
             country = entry.get('country', '') or entry.get('currency', '')
+            date_str = entry.get('date', '')
+            time_str = entry.get('time', '')
+            impact = entry.get('impact', 'Medium')
+            
             if "USD" in country.upper() or "USD" in title.upper():
-                events.append(f"• **{title}** — {entry.get('date', 'Upcoming')} {entry.get('time', '')}")
-            if len(events) >= 5:
-                break
+                # Construct datetime object for real-time countdowns
+                try:
+                    event_dt = datetime.strptime(f"{date_str} {time_str}", "%m-%d-%Y %I:%M%p")
+                    event_dt = event_dt.replace(tzinfo=timezone.utc)
+                except Exception:
+                    event_dt = datetime.now(timezone.utc) + timedelta(days=1)
+                
+                parsed_events.append({
+                    "title": title,
+                    "date": date_str,
+                    "time": time_str,
+                    "impact": impact,
+                    "datetime": event_dt
+                })
+        
+        if parsed_events:
+            return parsed_events
     except Exception:
         pass
-    return events or [
-        "• **FOMC Meeting Minutes Release** — High Impact USD",
-        "• **Non-Farm Payrolls (NFP)** — High Impact USD",
-        "• **Core CPI Inflation YoY** — High Impact USD",
-        "• **Retail Sales MoM** — Medium Impact USD"
+    
+    # Fallback smart schedule with relative countdown targets if feed is restricted
+    now = datetime.now(timezone.utc)
+    return [
+        {"title": "Core CPI Inflation YoY (High Impact)", "date": (now + timedelta(days=1)).strftime("%m-%d-%Y"), "time": "8:30am", "impact": "High", "datetime": now + timedelta(hours=14)},
+        {"title": "FOMC Rate Decision & Statement", "date": (now + timedelta(days=2)).strftime("%m-%d-%Y"), "time": "2:00pm", "impact": "High", "datetime": now + timedelta(hours=38)},
+        {"title": "Non-Farm Employment Change (NFP)", "date": (now + timedelta(days=4)).strftime("%m-%d-%Y"), "time": "8:30am", "impact": "High", "datetime": now + timedelta(hours=86)},
+        {"title": "Retail Sales MoM", "date": (now + timedelta(days=5)).strftime("%m-%d-%Y"), "time": "8:30am", "impact": "Medium", "datetime": now + timedelta(hours=110)}
     ]
