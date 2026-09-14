@@ -1,5 +1,5 @@
 import streamlit as st
-from data import get_macro_data, get_dxy_data, get_forexfactory_usd_events, get_investing_usd_news, get_historical_macro_matrix
+from data import get_macro_data, get_dxy_data, get_forexfactory_usd_events, get_investing_usd_news, get_historical_macro_matrix, get_coincap_data
 from analyzer import analyze_macro_framework
 from stats_engine import run_arima_forecast, run_logistic_regression, run_lda_model, run_pca_decomposition
 from backtest import run_historical_backtest
@@ -22,9 +22,10 @@ if enable_scenario:
     scenario_overrides['yield_spread'] = st.sidebar.slider("10Y-2Y Spread (%)", -2.0, 3.0, 0.33, 0.05)
 
 if st.button("Run Live Scan"):
-    with st.spinner("Fetching macro indicators, DXY spot price, and news..."):
+    with st.spinner("Fetching macro indicators, DXY spot price, crypto assets, and news..."):
         macro_metrics, error = get_macro_data()
         dxy_price, dxy_change = get_dxy_data()
+        crypto_assets, crypto_error = get_coincap_data(limit=5)
         ff_events = get_forexfactory_usd_events()
         investing_news = get_investing_usd_news()
 
@@ -49,6 +50,26 @@ if st.button("Run Live Scan"):
             st.metric(label="CPI Inflation (YoY)", value=f"{macro_metrics['cpi']:.2f}%")
         with col4:
             st.metric(label="Unemployment Rate", value=f"{macro_metrics['unemployment']:.1f}%")
+
+        # --- LIVE CRYPTO TICKER BAR (CoinCap API) ---
+        st.divider()
+        st.subheader("🪙 Live Cryptocurrency Market (CoinCap)")
+        if crypto_error:
+            st.info(f"Crypto feed unavailable: {crypto_error}")
+        elif crypto_assets:
+            ccols = st.columns(len(crypto_assets))
+            for i, asset in enumerate(crypto_assets):
+                name = asset.get('name', 'Unknown')
+                symbol = asset.get('symbol', '')
+                price = float(asset.get('priceUsd', 0))
+                change = float(asset.get('changePercent24Hr', 0))
+                
+                with ccols[i]:
+                    st.metric(
+                        label=f"{name} ({symbol})",
+                        value=f"${price:,.2f}" if price >= 1 else f"${price:.4f}",
+                        delta=f"{change:+.2f}%"
+                    )
 
         analysis = analyze_macro_framework(macro_metrics, dxy_change)
 
