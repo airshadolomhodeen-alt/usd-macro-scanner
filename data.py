@@ -5,6 +5,10 @@ from fredapi import Fred
 import feedparser
 import requests
 
+# Embedded API Keys for direct fallback
+DEFAULT_FRED_API_KEY = "9ce568bbed6778edaf3fb5ab4044abde"
+DEFAULT_COINCAP_API_KEY = "68b1ebbf058aa29b5e5fc2a95ed37bd2db699dae552cee1a90ae491d74cf520d"
+
 def get_fred_client():
     api_key = os.getenv("FRED_API_KEY")
     if not api_key:
@@ -13,6 +17,9 @@ def get_fred_client():
             api_key = st.secrets.get("FRED_API_KEY", "")
         except Exception:
             pass
+    
+    if not api_key:
+        api_key = DEFAULT_FRED_API_KEY
     
     cleaned_key = api_key.strip() if api_key else ""
     if not cleaned_key:
@@ -155,9 +162,12 @@ def get_coincap_data(limit=5):
         api_key = os.getenv("COINCAP_API_KEY", "")
 
     if not api_key:
+        api_key = DEFAULT_COINCAP_API_KEY
+
+    if not api_key:
         return None, "CoinCap API key missing."
 
-    url = f"https://api.coincap.io/v3/assets?limit={limit}"
+    url = f"https://rest.coincap.io/v3/assets?limit={limit}"
     headers = {
         "Authorization": f"Bearer {api_key}"
     }
