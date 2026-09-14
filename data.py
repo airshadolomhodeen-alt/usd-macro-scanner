@@ -18,7 +18,6 @@ def get_fred_client():
             api_key = st.secrets.get("FRED_API_KEY", "")
         except Exception:
             pass
-    
     if not api_key:
         api_key = DEFAULT_FRED_API_KEY
     
@@ -50,17 +49,16 @@ def get_macro_data():
             yield_spread = 0.0
 
         return {
-            "fed_rate": fed_rate,
-            "cpi": cpi,
-            "unemployment": unemployment,
-            "gdp_growth": gdp,
-            "yield_spread": yield_spread
+            "fed_rate": float(fed_rate),
+            "cpi": float(cpi),
+            "unemployment": float(unemployment),
+            "gdp_growth": float(gdp),
+            "yield_spread": float(yield_spread)
         }, None
     except Exception as e:
         return None, f"FRED Error: {str(e)}"
 
 def get_historical_macro_matrix():
-    """Fetches full historical time series matrix for statistical modeling."""
     fred = get_fred_client()
     if not fred:
         return None, "FRED API key missing."
@@ -94,8 +92,7 @@ def get_historical_macro_matrix():
     except Exception as e:
         return None, f"Historical Fetch Error: {str(e)}"
 
-def get_goldprice_dev_data():
-    """Fetches live spot Gold (XAUUSD) data directly from goldprice.dev API."""
+def get_gold_spot_data():
     api_key = os.getenv("GOLD_API_KEY")
     if not api_key:
         try:
@@ -103,67 +100,53 @@ def get_goldprice_dev_data():
             api_key = st.secrets.get("GOLD_API_KEY", "")
         except Exception:
             pass
-            
     if not api_key:
         api_key = DEFAULT_GOLD_API_KEY
 
-    if not api_key:
-        return 0.0, 0.0, "Goldprice.dev API key missing."
-
-    # Goldprice.dev spot endpoint configuration
-    url = "https://api.goldprice.dev/v1/spot"  # or matching goldprice.dev endpoint structure
-    headers = {
-        "x-api-key": api_key
-    }
-
+    # Primary check via yfinance gold futures/spot proxy for absolute chart reliability
     try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        
-        # Parse spot price and change depending on JSON response schema
-        price = float(data.get("price", data.get("spot_price", 0.0)))
-        change = float(data.get("change_percent", data.get("changePercent", 0.0)))
-        return price, change, None
-    except Exception as e:
-        # Fallback to yfinance if endpoint needs specific route alignment
-        price, change = get_dxy_fallback("GC=F")
-        return price, change, f"Goldprice.dev API note: {str(e)} (Using YFinance Spot Fallback)"
-
-def get_dxy_fallback(ticker_symbol):
-    try:
-        ticker = yf.Ticker(ticker_symbol)
+        ticker = yf.Ticker("GC=F")
         hist = ticker.history(period="1mo")
         if not hist.empty and len(hist) > 1:
-            current_price = hist['Close'].iloc[-1]
-            start_price = hist['Close'].iloc[0]
-            pct_change = ((current_price - start_price) / start_price) * 100
-            return current_price, pct_change
+            current = float(hist['Close'].iloc[-1])
+            start = float(hist['Close'].iloc[0])
+            change = ((current - start) / start) * 100
+            return current, change, None
     except Exception:
         pass
-    return 0.0, 0.0
+    return 0.0, 0.0, "Spot Gold feed fallback active."
 
 def get_dxy_data():
-    tickers_to_try = ["DX-Y.NYB", "DX=F"]
-    for ticker_symbol in tickers_to_try:
-        price, change = get_dxy_fallback(ticker_symbol)
-        if price > 0:
-            return price, change
+    for ticker_symbol in ["DX-Y.NYB", "DX=F"]:
+        try:
+            ticker = yf.Ticker(ticker_symbol)
+            hist = ticker.history(period="1mo")
+            if not hist.empty and len(hist) > 1:
+                current = float(hist['Close'].iloc[-1])
+                start = float(hist['Close'].iloc[0])
+                return current, ((current - start) / start) * 100
+        except Exception:
+            continue
     return 0.0, 0.0
 
 def get_gold_and_forex_data():
-    """Fetches spot XAUUSD and positively correlated forex pairs (EUR/USD, AUD/USD)."""
-    # Primary XAUUSD from goldprice.dev can be merged here or called independently
     assets = {
         "EUR/USD (High Pos-Corr)": "EURUSD=X",
         "AUD/USD (Commodity Pos-Corr)": "AUDUSD=X"
     }
-    
     results = {}
     for name, ticker_symbol in assets.items():
-        price, change = get_dxy_fallback(ticker_symbol)
-        results[name] = {"price": price, "change": change}
-            
+        try:
+            ticker = yf.Ticker(ticker_symbol)
+            hist = ticker.history(period="1mo")
+            if not hist.empty and len(hist) > 1:
+                c = float(hist['Close'].iloc[-1])
+                s = float(hist['Close'].iloc[0])
+                results[name] = {"price": c, "change": ((c - s) / s) * 100}
+            else:
+                results[name] = {"price": 0.0, "change": 0.0}
+        except Exception:
+            results[name] = {"price": 0.0, "change": 0.0}
     return results
 
 def get_coincap_gold_crypto(limit=1):
@@ -187,35 +170,9 @@ def get_forexfactory_usd_events():
             title = entry.get('title', '')
             country = entry.get('country', '') or entry.get('currency', '')
             if "USD" in country.upper() or "USD" in title.upper():
-                date_str = entry.get('date', 'Upcoming')
-                time_str = entry.get('time', '')
-                events.append(f"• **{title}** — {date_str} {time_str}")
+                events.append(f"• **{title}** — {entry.get('date', 'Upcoming')} {entry.get('time', '')}")
             if len(events) >= 5:
                 break
-    except Exception as e:
-        events.append(f"• Calendar parsing temporarily unavailable: {str(e)}")
-    if not events:
-        events.append("• No immediate high-impact USD economic events scheduled for today.")
-    return events
-
-def get_investing_usd_news():
-    url = "https://www.investing.com/rss/news_1.rss"
-    news = []
-    try:
-        feed = feedparser.parse(url, agent="Mozilla/5.0")
-        usd_keywords = ["USD", "DOLLAR", "FED", "FOMC", "GREENBACK", "POWELL", "TREASURY", "INFLATION"]
-        for entry in feed.entries:
-            title = entry.get('title', '')
-            link = entry.get('link', '#')
-            published = entry.get('published', 'Recent')
-            if any(kw in title.upper() for kw in usd_keywords):
-                news.append({
-                    "title": title,
-                    "link": link,
-                    "published": published
-                })
-            if len(news) >= 5:
-                break
-    except Exception as e:
-        print(f"Investing RSS Error: {e}")
-    return news
+    except Exception:
+        events.append("• Calendar parsing temporarily unavailable.")
+    return events or ["• No immediate high-impact USD events scheduled."]
