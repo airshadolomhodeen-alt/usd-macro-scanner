@@ -14,7 +14,6 @@ DEFAULT_MARKETAUX_KEY = "zqEGxBN0csR7vAKOLKO9FLJ75SkwC5pO5XdcVSzV"
 DEFAULT_FMP_API_KEY = "vWBHFt7CRpiDdVx5abNLJ1HvBCf6H29"
 
 def get_fmp_api_key():
-    """Retrieves FMP API key safely from environment or Streamlit secrets."""
     api_key = os.getenv("FMP_API_KEY", DEFAULT_FMP_API_KEY)
     try:
         import streamlit as st
@@ -187,7 +186,6 @@ def get_forexfactory_usd_events():
                 country = event.get("country", "")
                 impact = event.get("impact", "")
                 
-                # Filter strictly for US High/Medium impact events
                 if country == "US" and impact in ["High", "Medium"]:
                     date_time_str = event.get("date", "")
                     try:
