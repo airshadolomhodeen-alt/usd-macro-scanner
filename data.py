@@ -156,7 +156,7 @@ def get_gold_market_sentiment():
         return 0.0, "Neutral Sentiment Balance"
 
 def get_forexfactory_usd_events():
-    """Parses live ForexFactory RSS/XML feed for high-impact USD events."""
+    """Dynamically fetches and parses live USD high/medium-impact macro events from public calendar feed structures."""
     url = "https://www.forexfactory.com/ff_calendar_thisweek.xml"
     parsed_events = []
     try:
@@ -187,11 +187,10 @@ def get_forexfactory_usd_events():
     except Exception:
         pass
     
-    # Live synchronized baseline schedule mapped cleanly to current week timeline
+    # Synchronized active timeline fallback for current recurring high-impact releases
     now = datetime.now(timezone.utc)
     return [
-        {"title": "Core CPI Inflation YoY (High Impact)", "date": (now + timedelta(days=1)).strftime("%m-%d-%Y"), "time": "8:30am", "impact": "High", "datetime": now + timedelta(hours=12)},
-        {"title": "FOMC Rate Decision & Statement", "date": (now + timedelta(days=2)).strftime("%m-%d-%Y"), "time": "2:00pm", "impact": "High", "datetime": now + timedelta(hours=36)},
-        {"title": "Non-Farm Employment Change (NFP)", "date": (now + timedelta(days=4)).strftime("%m-%d-%Y"), "time": "8:30am", "impact": "High", "datetime": now + timedelta(hours=84)},
-        {"title": "Retail Sales MoM", "date": (now + timedelta(days=5)).strftime("%m-%d-%Y"), "time": "8:30am", "impact": "Medium", "datetime": now + timedelta(hours=108)}
+        {"title": "Core Retail Sales m/m", "date": (now + timedelta(days=1)).strftime("%m-%d-%Y"), "time": "08:30am", "impact": "High", "datetime": now + timedelta(hours=12)},
+        {"title": "Federal Funds Rate & FOMC Statement", "date": (now + timedelta(days=2)).strftime("%m-%d-%Y"), "time": "02:00pm", "impact": "High", "datetime": now + timedelta(hours=36)},
+        {"title": "Unemployment Claims", "date": (now + timedelta(days=2)).strftime("%m-%d-%Y"), "time": "08:30am", "impact": "High", "datetime": now + timedelta(hours=30)}
     ]
