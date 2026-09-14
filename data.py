@@ -76,6 +76,10 @@ def get_historical_macro_matrix():
         if isinstance(dxy, pd.DataFrame):
             dxy = dxy.squeeze()
 
+        gold_hist = yf.download("GC=F", period="5y", interval="1mo", progress=False)['Close']
+        if isinstance(gold_hist, pd.DataFrame):
+            gold_hist = gold_hist.squeeze()
+
         df = pd.DataFrame({
             'fed_rate': fed_rate,
             'cpi': cpi,
@@ -87,8 +91,11 @@ def get_historical_macro_matrix():
         df['gdp_growth'] = 2.1
         
         dxy.index = dxy.index.tz_localize(None)
+        gold_hist.index = gold_hist.index.tz_localize(None)
+        
         df = df.resample('ME').last()
         df['dxy'] = dxy.reindex(df.index, method='ffill')
+        df['gold_price'] = gold_hist.reindex(df.index, method='ffill')
 
         return df.dropna(), None
     except Exception as e:
@@ -168,7 +175,6 @@ def get_gold_market_sentiment():
         return 0.0, "Neutral Sentiment Balance"
 
 def get_forexfactory_usd_events():
-    """Fetches real-time US economic events from the live FMP calendar API and converts timestamps to PHT (UTC+8)."""
     api_key = get_fmp_api_key()
     today_str = datetime.now(PHT).strftime("%Y-%m-%d")
     end_str = (datetime.now(PHT) + timedelta(days=7)).strftime("%Y-%m-%d")
