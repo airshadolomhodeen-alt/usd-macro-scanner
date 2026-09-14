@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+from datetime import datetime, timezone
+import time
 
 from data import (
     get_macro_data,
@@ -22,7 +24,7 @@ st.set_page_config(
 )
 
 st.title("🏆 XAUUSD / Gold Profit-Factor & Macro Forecasting Engine")
-st.markdown("Institutional-grade macro scanning, Z-Score mean-reversion metrics, and live Marketaux/ForexFactory intelligence for Gold traders.")
+st.markdown("Institutional-grade macro scanning, Z-Score mean-reversion metrics, live sentiment intelligence, and real-time event countdowns.")
 
 st.sidebar.header("What-If Scenario Controller")
 enable_simulation = st.sidebar.checkbox("Enable Scenario Simulation")
@@ -36,7 +38,7 @@ if enable_simulation:
     sim_gdp = st.sidebar.slider("GDP Growth (%)", -5.0, 8.0, 2.0, 0.1)
     sim_spread = st.sidebar.slider("10Y-2Y Yield Spread", -1.0, 2.0, 0.0, 0.1)
 
-with st.spinner("Ingesting macro data, sentiment feeds, and executing statistical models..."):
+with st.spinner("Ingesting institutional feeds and computing predictive probabilities..."):
     macro_data, err = get_macro_data()
     if err or not macro_data:
         macro_data = {"fed_rate": 3.63, "cpi": 3.35, "unemployment": 4.1, "gdp_growth": 2.2, "yield_spread": -0.1}
@@ -126,16 +128,39 @@ if historical_df is not None:
     )
     st.plotly_chart(fig, use_container_width=True)
 
+# Live Economic Calendar & Real-Time Countdowns Section
 st.markdown("---")
 c_col1, c_col2 = st.columns(2)
+
 with c_col1:
-    st.subheader("📅 ForexFactory High-Impact USD Events")
+    st.subheader("📅 ForexFactory High-Impact USD Events & Countdowns")
     events = get_forexfactory_usd_events()
+    now_utc = datetime.now(timezone.utc)
+    
     for ev in events:
-        st.markdown(ev)
+        target_dt = ev["datetime"]
+        diff = target_dt - now_utc
+        
+        if diff.total_seconds() > 0:
+            days = diff.days
+            hours, remainder = divmod(diff.seconds, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            if days > 0:
+                countdown_str = f"⏳ **{days}d {hours}h {minutes}m remaining**"
+            else:
+                countdown_str = f"⏳ **{hours}h {minutes}m {seconds}s remaining**"
+        else:
+            countdown_str = "🔴 **Event Released / Live Now**"
+            
+        st.markdown(f"• **{ev['title']}**\n  * 🗓️ Date/Time: **{ev['date']} at {ev['time']}**\n  * {countdown_str}")
+
 with c_col2:
     st.subheader("💡 Macro Economic Framework States")
     st.write(f"* **AD Framework:** {analysis['ad_state']}")
     st.write(f"* **SRAS Pressure:** {analysis['sras_state']}")
     st.write(f"* **LRAS Output Gap:** {analysis['lras_gap']}")
     st.write(f"* **Taylor Rate Gap:** {analysis['rate_gap']:+.2f}%")
+
+# Auto-refresh mechanism for real-time countdown updates every 60 seconds
+time.sleep(60)
+st.rerun()
