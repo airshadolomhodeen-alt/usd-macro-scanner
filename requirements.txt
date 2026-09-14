@@ -4,6 +4,7 @@ numpy
 yfinance
 fredapi
 feedparser
+requests
 statsmodels
 scikit-learn
-requests
+plotly
