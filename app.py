@@ -12,6 +12,7 @@ from data import (
     get_gold_and_forex_data,
     get_coincap_gold_crypto,
     get_gold_market_sentiment,
+    get_cftc_gold_cot,
     get_forexfactory_usd_events
 )
 from analyzer import analyze_macro_framework
@@ -140,7 +141,6 @@ if historical_df is not None:
     st.markdown("---")
     st.subheader("📈 Historical Macro & Trend Visualization")
     
-    # Dual-axis chart configuration mapping Real Rate vs Gold Spot Price
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=historical_df.index, 
@@ -179,6 +179,20 @@ if historical_df is not None:
         legend=dict(x=0.01, y=0.99)
     )
     st.plotly_chart(fig, use_container_width=True)
+
+# --- COT Speculative Positioning Tracker Section ---
+st.markdown("---")
+st.subheader("🏛️ CFTC Commitments of Traders (COT) - Institutional Positioning")
+
+cot_data, cot_err = get_cftc_gold_cot()
+
+cot_col1, cot_col2, cot_col3 = st.columns(3)
+with cot_col1:
+    st.metric("Managed Money Net Position", f"{cot_data['net_position']:,.0f} Contracts", help="Non-commercial net long/short contracts on COMEX Gold.")
+with cot_col2:
+    st.metric("Net Position % of Open Interest", f"{cot_data['net_pct']:.1f}%", help="Proportion of open interest held net by speculators.")
+with cot_col3:
+    st.metric("Institutional Sentiment Bias", cot_data['bias'])
 
 # Live Economic Calendar & Real-Time Countdowns Section (PHT Zone)
 st.markdown("---")
