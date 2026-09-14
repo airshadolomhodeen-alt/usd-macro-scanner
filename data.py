@@ -3,6 +3,7 @@ import pandas as pd
 import yfinance as yf
 from fredapi import Fred
 import feedparser
+import requests
 
 def get_fred_client():
     api_key = os.getenv("FRED_API_KEY")
@@ -141,3 +142,30 @@ def get_investing_usd_news():
     except Exception as e:
         print(f"Investing RSS Error: {e}")
     return news
+
+def get_coincap_data(limit=5):
+    api_key = ""
+    try:
+        import streamlit as st
+        api_key = st.secrets.get("COINCAP_API_KEY", "")
+    except Exception:
+        pass
+    
+    if not api_key:
+        api_key = os.getenv("COINCAP_API_KEY", "")
+
+    if not api_key:
+        return None, "CoinCap API key missing."
+
+    url = f"https://api.coincap.io/v3/assets?limit={limit}"
+    headers = {
+        "Authorization": f"Bearer {api_key}"
+    }
+
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        return data.get("data", []), None
+    except Exception as e:
+        return None, f"CoinCap API Error: {str(e)}"
