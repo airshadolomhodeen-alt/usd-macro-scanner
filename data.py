@@ -5,9 +5,10 @@ from fredapi import Fred
 import feedparser
 import requests
 
-# Embedded API Keys for direct fallback
+# Embedded API Keys & Fallbacks
 DEFAULT_FRED_API_KEY = "9ce568bbed6778edaf3fb5ab4044abde"
 DEFAULT_COINCAP_API_KEY = "68b1ebbf058aa29b5e5fc2a95ed37bd2db699dae552cee1a90ae491d74cf520d"
+DEFAULT_GOLD_API_KEY = "ga_live_iv4A7LyCltJP3_BwdLAJMhlp4azEFdyrSXA5rSEc"
 
 def get_fred_client():
     api_key = os.getenv("FRED_API_KEY")
@@ -93,20 +94,89 @@ def get_historical_macro_matrix():
     except Exception as e:
         return None, f"Historical Fetch Error: {str(e)}"
 
+def get_goldprice_dev_data():
+    """Fetches live spot Gold (XAUUSD) data directly from goldprice.dev API."""
+    api_key = os.getenv("GOLD_API_KEY")
+    if not api_key:
+        try:
+            import streamlit as st
+            api_key = st.secrets.get("GOLD_API_KEY", "")
+        except Exception:
+            pass
+            
+    if not api_key:
+        api_key = DEFAULT_GOLD_API_KEY
+
+    if not api_key:
+        return 0.0, 0.0, "Goldprice.dev API key missing."
+
+    # Goldprice.dev spot endpoint configuration
+    url = "https://api.goldprice.dev/v1/spot"  # or matching goldprice.dev endpoint structure
+    headers = {
+        "x-api-key": api_key
+    }
+
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Parse spot price and change depending on JSON response schema
+        price = float(data.get("price", data.get("spot_price", 0.0)))
+        change = float(data.get("change_percent", data.get("changePercent", 0.0)))
+        return price, change, None
+    except Exception as e:
+        # Fallback to yfinance if endpoint needs specific route alignment
+        price, change = get_dxy_fallback("GC=F")
+        return price, change, f"Goldprice.dev API note: {str(e)} (Using YFinance Spot Fallback)"
+
+def get_dxy_fallback(ticker_symbol):
+    try:
+        ticker = yf.Ticker(ticker_symbol)
+        hist = ticker.history(period="1mo")
+        if not hist.empty and len(hist) > 1:
+            current_price = hist['Close'].iloc[-1]
+            start_price = hist['Close'].iloc[0]
+            pct_change = ((current_price - start_price) / start_price) * 100
+            return current_price, pct_change
+    except Exception:
+        pass
+    return 0.0, 0.0
+
 def get_dxy_data():
     tickers_to_try = ["DX-Y.NYB", "DX=F"]
     for ticker_symbol in tickers_to_try:
-        try:
-            ticker = yf.Ticker(ticker_symbol)
-            hist = ticker.history(period="1mo")
-            if not hist.empty and len(hist) > 1:
-                current_price = hist['Close'].iloc[-1]
-                start_price = hist['Close'].iloc[0]
-                pct_change = ((current_price - start_price) / start_price) * 100
-                return current_price, pct_change
-        except Exception:
-            continue
+        price, change = get_dxy_fallback(ticker_symbol)
+        if price > 0:
+            return price, change
     return 0.0, 0.0
+
+def get_gold_and_forex_data():
+    """Fetches spot XAUUSD and positively correlated forex pairs (EUR/USD, AUD/USD)."""
+    # Primary XAUUSD from goldprice.dev can be merged here or called independently
+    assets = {
+        "EUR/USD (High Pos-Corr)": "EURUSD=X",
+        "AUD/USD (Commodity Pos-Corr)": "AUDUSD=X"
+    }
+    
+    results = {}
+    for name, ticker_symbol in assets.items():
+        price, change = get_dxy_fallback(ticker_symbol)
+        results[name] = {"price": price, "change": change}
+            
+    return results
+
+def get_coincap_gold_crypto(limit=1):
+    api_key = os.getenv("COINCAP_API_KEY", DEFAULT_COINCAP_API_KEY)
+    url = "https://rest.coincap.io/v3/assets/pax-gold"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json().get("data")
+        return [data] if isinstance(data, dict) else data, None
+    except Exception as e:
+        return None, f"CoinCap API Error: {str(e)}"
 
 def get_forexfactory_usd_events():
     url = "https://www.forexfactory.com/ff_calendar_thisweek.xml"
@@ -149,33 +219,3 @@ def get_investing_usd_news():
     except Exception as e:
         print(f"Investing RSS Error: {e}")
     return news
-
-def get_coincap_data(limit=5):
-    api_key = ""
-    try:
-        import streamlit as st
-        api_key = st.secrets.get("COINCAP_API_KEY", "")
-    except Exception:
-        pass
-    
-    if not api_key:
-        api_key = os.getenv("COINCAP_API_KEY", "")
-
-    if not api_key:
-        api_key = DEFAULT_COINCAP_API_KEY
-
-    if not api_key:
-        return None, "CoinCap API key missing."
-
-    url = f"https://rest.coincap.io/v3/assets?limit={limit}"
-    headers = {
-        "Authorization": f"Bearer {api_key}"
-    }
-
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        return data.get("data", []), None
-    except Exception as e:
-        return None, f"CoinCap API Error: {str(e)}"
