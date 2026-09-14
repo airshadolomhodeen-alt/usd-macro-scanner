@@ -5,13 +5,16 @@ from fredapi import Fred
 import requests
 from datetime import datetime, timezone, timedelta
 
+# Define Philippine Standard Time (UTC+8)
+PHT = timezone(timedelta(hours=8))
+
 DEFAULT_FRED_API_KEY = "9ce568bbed6778edaf3fb5ab4044abde"
 DEFAULT_COINCAP_API_KEY = "68b1ebbf058aa29b5e5fc2a95ed37bd2db699dae552cee1a90ae491d74cf520d"
 DEFAULT_MARKETAUX_KEY = "zqEGxBN0csR7vAKOLKO9FLJ75SkwC5pO5XdcVSzV"
 DEFAULT_FMP_API_KEY = "vWBHFt7CRpiDdVx5abNLJ1HvBCf6H29"
 
 def get_fmp_api_key():
-    """Retrieves FMP API key from environment or Streamlit secrets safely."""
+    """Retrieves FMP API key safely from environment or Streamlit secrets."""
     api_key = os.getenv("FMP_API_KEY", DEFAULT_FMP_API_KEY)
     try:
         import streamlit as st
@@ -166,10 +169,10 @@ def get_gold_market_sentiment():
         return 0.0, "Neutral Sentiment Balance"
 
 def get_forexfactory_usd_events():
-    """Fetches real-time US economic events dynamically using the FMP secure API endpoint."""
+    """Fetches real-time US economic events from the live FMP calendar API and converts timestamps to PHT (UTC+8)."""
     api_key = get_fmp_api_key()
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    end_str = (datetime.now(timezone.utc) + timedelta(days=7)).strftime("%Y-%m-%d")
+    today_str = datetime.now(PHT).strftime("%Y-%m-%d")
+    end_str = (datetime.now(PHT) + timedelta(days=7)).strftime("%Y-%m-%d")
     
     url = f"https://financialmodelingprep.com/stable/economic-calendar?from={today_str}&to={end_str}&apikey={api_key}"
     
@@ -184,21 +187,23 @@ def get_forexfactory_usd_events():
                 country = event.get("country", "")
                 impact = event.get("impact", "")
                 
+                # Filter strictly for US High/Medium impact events
                 if country == "US" and impact in ["High", "Medium"]:
                     date_time_str = event.get("date", "")
                     try:
-                        event_dt = datetime.fromisoformat(date_time_str.replace("Z", "+00:00"))
+                        event_dt_utc = datetime.fromisoformat(date_time_str.replace("Z", "+00:00"))
+                        event_dt_pht = event_dt_utc.astimezone(PHT)
                     except Exception:
                         continue
                     
                     parsed_events.append({
                         "title": event.get("event", "Macro Release"),
-                        "date": event_dt.strftime("%m-%d-%Y"),
-                        "time": event_dt.strftime("%I:%M%p").lower(),
+                        "date": event_dt_pht.strftime("%m-%d-%Y"),
+                        "time": event_dt_pht.strftime("%I:%M%p").lower(),
                         "impact": impact,
                         "forecast": str(event.get("estimate", "N/A")),
                         "previous": str(event.get("previous", "N/A")),
-                        "datetime": event_dt
+                        "datetime": event_dt_pht
                     })
                     
         if parsed_events:
@@ -207,25 +212,4 @@ def get_forexfactory_usd_events():
     except Exception as e:
         print(f"FMP API Calendar Error: {e}")
         
-    # Fallback to prevent app breaking if network limits trigger
-    now = datetime.now(timezone.utc)
-    return [
-        {
-            "title": "Core Retail Sales m/m",
-            "date": (now + timedelta(days=1)).strftime("%m-%d-%Y"),
-            "time": "08:30am",
-            "impact": "High",
-            "forecast": "0.5%",
-            "previous": "0.3%",
-            "datetime": now + timedelta(days=1)
-        },
-        {
-            "title": "Federal Funds Rate & Statement",
-            "date": (now + timedelta(days=2)).strftime("%m-%d-%Y"),
-            "time": "02:00pm",
-            "impact": "High",
-            "forecast": "4.00%",
-            "previous": "3.75%",
-            "datetime": now + timedelta(days=2)
-        }
-    ]
+    return []
