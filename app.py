@@ -164,13 +164,11 @@ if historical_df is not None:
         title='Real Interest Rates vs. Historical Gold Spot Price Dynamics',
         xaxis_title='Timeline',
         yaxis=dict(
-            title='Real Interest Rate (%)',
-            titlefont=dict(color='orange'),
+            title=dict(text='Real Interest Rate (%)', font=dict(color='orange')),
             tickfont=dict(color='orange')
         ),
         yaxis2=dict(
-            title='Gold Spot Price ($)',
-            titlefont=dict(color='#38bdf8'),
+            title=dict(text='Gold Spot Price ($)', font=dict(color='#38bdf8')),
             tickfont=dict(color='#38bdf8'),
             anchor='x',
             overlaying='y',
