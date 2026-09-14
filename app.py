@@ -27,6 +27,20 @@ st.set_page_config(
     layout="wide"
 )
 
+# Custom CSS for Responsive Spacing on Ultra-Wide Monitors
+st.markdown(
+    """
+    <style>
+    /* Keeps metric containers looking crisp and prevents over-stretching on ultra-wide screens */
+    [data-testid="stHorizontalBlock"] {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # Header with Real-Time Active Verification Badge on the Upper Right Side (PHT Zone)
 head_col1, head_col2 = st.columns([2.5, 1.5])
 with head_col1:
@@ -165,17 +179,19 @@ if historical_df is not None:
         xaxis_title='Timeline',
         yaxis=dict(
             title=dict(text='Real Interest Rate (%)', font=dict(color='orange')),
-            tickfont=dict(color='orange')
+            tickfont=dict(color='orange'),
+            automargin=True
         ),
         yaxis2=dict(
             title=dict(text='Gold Spot Price ($)', font=dict(color='#38bdf8')),
             tickfont=dict(color='#38bdf8'),
             anchor='x',
             overlaying='y',
-            side='right'
+            side='right',
+            automargin=True
         ),
         template='plotly_dark',
-        margin=dict(l=40, r=40, t=40, b=40),
+        margin=dict(l=70, r=40, t=50, b=40),
         legend=dict(x=0.01, y=0.99)
     )
     st.plotly_chart(fig, use_container_width=True)
