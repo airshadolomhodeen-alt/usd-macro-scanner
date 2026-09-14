@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import time
 
 from data import (
@@ -17,13 +17,16 @@ from data import (
 from analyzer import analyze_macro_framework
 from stats_engine import calculate_z_scores
 
+# Define Philippine Standard Time (UTC+8)
+PHT = timezone(timedelta(hours=8))
+
 st.set_page_config(
     page_title="XAUUSD Profit-Factor & Macro Engine",
     page_icon="🏆",
     layout="wide"
 )
 
-# Header with Real-Time Active Verification Badge on the Upper Right Side
+# Header with Real-Time Active Verification Badge on the Upper Right Side (PHT Zone)
 head_col1, head_col2 = st.columns([2.5, 1.5])
 with head_col1:
     st.title("🏆 XAUUSD / Gold Profit-Factor & Macro Forecasting Engine")
@@ -31,10 +34,10 @@ with head_col1:
 
 with head_col2:
     st.markdown("<br>", unsafe_allow_html=True)
-    now_utc = datetime.now(timezone.utc)
-    current_day_str = now_utc.strftime("%A")
-    current_date_str = now_utc.strftime("%B %d, %Y")
-    current_time_str = now_utc.strftime("%H:%M:%S UTC")
+    now_pht = datetime.now(PHT)
+    current_day_str = now_pht.strftime("%A")
+    current_date_str = now_pht.strftime("%B %d, %Y")
+    current_time_str = now_pht.strftime("%H:%M:%S PHT")
     st.markdown(
         f"""
         <div style="background-color: #1e293b; padding: 10px 15px; border-radius: 8px; border: 1px solid #334155; text-align: right;">
@@ -148,18 +151,18 @@ if historical_df is not None:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# Live Economic Calendar & Real-Time Countdowns Section
+# Live Economic Calendar & Real-Time Countdowns Section (PHT Zone)
 st.markdown("---")
 c_col1, c_col2 = st.columns(2)
 
 with c_col1:
-    st.subheader("📅 ForexFactory High-Impact USD Events & Countdowns")
+    st.subheader("📅 ForexFactory High-Impact USD Events & Countdowns (PHT)")
     events = get_forexfactory_usd_events()
-    now_utc = datetime.now(timezone.utc)
+    now_pht = datetime.now(PHT)
     
     for ev in events:
         target_dt = ev["datetime"]
-        diff = target_dt - now_utc
+        diff = target_dt - now_pht
         
         if diff.total_seconds() > 0:
             days = diff.days
@@ -172,7 +175,7 @@ with c_col1:
         else:
             countdown_str = "🔴 **Event Released / Live Now**"
             
-        st.markdown(f"• **{ev['title']}**\n  * 🗓️ Date/Time: **{ev['date']} at {ev['time']}**\n  * {countdown_str}")
+        st.markdown(f"• **{ev['title']}**\n  * 🗓️ Date/Time (PHT): **{ev['date']} at {ev['time']}**\n  * {countdown_str}")
 
 with c_col2:
     st.subheader("💡 Macro Economic Framework States")
