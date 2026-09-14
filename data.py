@@ -93,17 +93,6 @@ def get_historical_macro_matrix():
         return None, f"Historical Fetch Error: {str(e)}"
 
 def get_gold_spot_data():
-    api_key = os.getenv("GOLD_API_KEY")
-    if not api_key:
-        try:
-            import streamlit as st
-            api_key = st.secrets.get("GOLD_API_KEY", "")
-        except Exception:
-            pass
-    if not api_key:
-        api_key = DEFAULT_GOLD_API_KEY
-
-    # Primary check via yfinance gold futures/spot proxy for absolute chart reliability
     try:
         ticker = yf.Ticker("GC=F")
         hist = ticker.history(period="1mo")
