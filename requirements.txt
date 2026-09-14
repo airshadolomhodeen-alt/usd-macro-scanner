@@ -6,3 +6,4 @@ fredapi
 feedparser
 statsmodels
 scikit-learn
+requests
