@@ -1,194 +1,149 @@
 import streamlit as st
-from data import get_macro_data, get_dxy_data, get_forexfactory_usd_events, get_investing_usd_news, get_historical_macro_matrix, get_coincap_data
+import pandas as pd
+import plotly.graph_objects as go
+
+from data import (
+    get_macro_data,
+    get_historical_macro_matrix,
+    get_gold_spot_data,
+    get_dxy_data,
+    get_gold_and_forex_data,
+    get_coincap_gold_crypto,
+    get_forexfactory_usd_events
+)
 from analyzer import analyze_macro_framework
-from stats_engine import run_arima_forecast, run_logistic_regression, run_lda_model, run_pca_decomposition
+from stats_engine import run_arima_forecast, calculate_z_scores, run_logistic_regression, run_pca_decomposition
 from backtest import run_historical_backtest
 
-st.set_page_config(page_title="USD Real-Time Macro Scanner", layout="wide")
+st.set_page_config(
+    page_title="XAUUSD Macro & Statistical Forecasting Engine",
+    page_icon="🏆",
+    layout="wide"
+)
 
-st.title("USD Real-Time Macro Scanner")
+st.title("🏆 XAUUSD / Gold Macro & Statistical Forecasting Engine")
+st.markdown("Institutional-grade macro scanning, Z-Score mean-reversion metrics, and walk-forward directional probability models for Gold traders.")
 
-# --- SIDEBAR: "WHAT-IF" SCENARIO SIMULATOR ---
-st.sidebar.header("🕹️ What-If Scenario Controller")
-enable_scenario = st.sidebar.checkbox("Enable Scenario Simulation", value=False)
+# Sidebar Controls
+st.sidebar.header("What-If Scenario Controller")
+enable_simulation = st.sidebar.checkbox("Enable Scenario Simulation")
 
-scenario_overrides = {}
-if enable_scenario:
-    st.sidebar.subheader("Adjust Macro Variables")
-    scenario_overrides['fed_rate'] = st.sidebar.slider("Fed Funds Rate (%)", 0.0, 10.0, 3.63, 0.25)
-    scenario_overrides['cpi'] = st.sidebar.slider("CPI Inflation YoY (%)", 0.0, 10.0, 3.35, 0.1)
-    scenario_overrides['unemployment'] = st.sidebar.slider("Unemployment Rate (%)", 2.0, 10.0, 4.1, 0.1)
-    scenario_overrides['gdp_growth'] = st.sidebar.slider("GDP Growth YoY (%)", -3.0, 6.0, 2.1, 0.1)
-    scenario_overrides['yield_spread'] = st.sidebar.slider("10Y-2Y Spread (%)", -2.0, 3.0, 0.33, 0.05)
+sim_fed_rate, sim_cpi, sim_unemp, sim_gdp, sim_spread = 3.0, 2.0, 4.0, 2.0, 0.0
+if enable_simulation:
+    st.sidebar.subheader("Adjust Shock Parameters")
+    sim_fed_rate = st.sidebar.slider("Fed Funds Rate (%)", 0.0, 8.0, 3.0, 0.25)
+    sim_cpi = st.sidebar.slider("CPI Inflation YoY (%)", -1.0, 10.0, 2.0, 0.1)
+    sim_unemp = st.sidebar.slider("Unemployment Rate (%)", 1.0, 15.0, 4.0, 0.1)
+    sim_gdp = st.sidebar.slider("GDP Growth (%)", -5.0, 8.0, 2.0, 0.1)
+    sim_spread = st.sidebar.slider("10Y-2Y Yield Spread", -1.0, 2.0, 0.0, 0.1)
 
-if st.button("Run Live Scan"):
-    with st.spinner("Fetching macro indicators, DXY spot price, crypto assets, and news..."):
-        macro_metrics, error = get_macro_data()
+if st.sidebar.button("Run Live Scan") or not enable_simulation:
+    with st.spinner("Ingesting macro data from FRED, Goldprice.dev, and executing statistical pipelines..."):
+        macro_data, err = get_macro_data()
+        if err or not macro_data:
+            st.error(f"Macro Data Error: {err}")
+            macro_data = {"fed_rate": 3.0, "cpi": 2.0, "unemployment": 4.0, "gdp_growth": 2.0, "yield_spread": 0.0}
+        
+        if enable_simulation:
+            macro_data = {
+                "fed_rate": sim_fed_rate,
+                "cpi": sim_cpi,
+                "unemployment": sim_unemp,
+                "gdp_growth": sim_gdp,
+                "yield_spread": sim_spread
+            }
+
         dxy_price, dxy_change = get_dxy_data()
-        crypto_assets, crypto_error = get_coincap_data(limit=5)
-        ff_events = get_forexfactory_usd_events()
-        investing_news = get_investing_usd_news()
+        gold_price, gold_change, gold_err = get_gold_spot_data()
+        fx_data = get_gold_and_forex_data()
+        crypto_data, crypto_err = get_coincap_gold_crypto()
+        historical_df, hist_err = get_historical_macro_matrix()
 
-    if enable_scenario and macro_metrics:
-        st.warning("⚠️ **Scenario Mode Active:** Displaying simulated results based on sidebar inputs.")
-        macro_metrics.update(scenario_overrides)
-
-    st.subheader("USD Spot & Core Macro Drivers")
+    # Top Metrics Row: XAUUSD, DXY, and Correlated Assets
+    st.markdown("---")
+    st.subheader("📊 Spot Assets & Core Macro Drivers")
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric(
-            label="DXY Spot Price", 
-            value=f"${dxy_price:.2f}" if dxy_price > 0 else "N/A", 
-            delta=f"{dxy_change:+.2f}% (1M)" if dxy_price > 0 else None
-        )
-        
-    if macro_metrics:
-        with col2:
-            st.metric(label="Fed Funds Rate", value=f"{macro_metrics['fed_rate']:.2f}%")
-        with col3:
-            st.metric(label="CPI Inflation (YoY)", value=f"{macro_metrics['cpi']:.2f}%")
-        with col4:
-            st.metric(label="Unemployment Rate", value=f"{macro_metrics['unemployment']:.1f}%")
+        st.metric("XAUUSD Spot Price", f"${gold_price:,.2f}", f"{gold_change:+.2f}% (1M)")
+    with col2:
+        st.metric("DXY Index", f"${dxy_price:,.2f}" if dxy_price else "N/A", f"{dxy_change:+.2f}% (1M)")
+    with col3:
+        st.metric("Fed Funds Rate", f"{macro_data['fed_rate']:.2f}%")
+    with col4:
+        st.metric("CPI Inflation (YoY)", f"{macro_data['cpi']:.2f}%")
 
-        # --- LIVE CRYPTO TICKER BAR (CoinCap API) ---
-        st.divider()
-        st.subheader("🪙 Live Cryptocurrency Market (CoinCap)")
-        if crypto_error:
-            st.info(f"Crypto feed unavailable: {crypto_error}")
-        elif crypto_assets:
-            ccols = st.columns(len(crypto_assets))
-            for i, asset in enumerate(crypto_assets):
-                name = asset.get('name', 'Unknown')
-                symbol = asset.get('symbol', '')
-                price = float(asset.get('priceUsd', 0))
-                change = float(asset.get('changePercent24Hr', 0))
-                
-                with ccols[i]:
-                    st.metric(
-                        label=f"{name} ({symbol})",
-                        value=f"${price:,.2f}" if price >= 1 else f"${price:.4f}",
-                        delta=f"{change:+.2f}%"
-                    )
-
-        analysis = analyze_macro_framework(macro_metrics, dxy_change)
-
-        st.divider()
-        st.subheader("USD 3-Month Directional Forecast & Probability Engine")
-        
-        col_a, col_b = st.columns([1, 2])
-        with col_a:
-            st.info(f"**Projected USD Direction:** {analysis.get('bias', 'NEUTRAL / RANGE-BOUND ↔️')}")
-            
-            bullish_p = float(analysis.get('bullish_prob', 50))
-            bearish_p = float(analysis.get('bearish_prob', 50))
-            
-            st.write(f"**Bullish Probability:** {bullish_p:.0f}%")
-            st.progress(int(bullish_p))
-            st.write(f"**Bearish Probability:** {bearish_p:.0f}%")
-            
-            st.metric("Real Fed Funds Rate", f"{analysis.get('real_rate', 0.0):.2f}%")
-            st.metric("Implied Taylor Rule Target Rate", f"{analysis.get('taylor_rate', 0.0):.2f}%")
-
-        with col_b:
-            st.markdown("### Strategic Execution Recommendation")
-            st.write(analysis.get('recommendation', 'Trade macro range bounds.'))
-            
-            st.markdown("---")
-            st.markdown("### Tactical Trading Guidance")
-            bias_str = str(analysis.get('bias', 'NEUTRAL'))
-            if "BULLISH" in bias_str:
-                st.success("• **Primary Trade:** Long USD/JPY or Short EUR/USD on 4H pullbacks.")
-            elif "BEARISH" in bias_str:
-                st.error("• **Primary Trade:** Long EUR/USD or Long Gold (XAU/USD).")
-            else:
-                st.warning("• **Primary Trade:** Range-trading strategies / Mean-reversion.")
-
-        # Quantitative Statistical & Backtest Engine
-        st.divider()
-        st.subheader("Quantitative Statistical Modeling Suite")
-        
-        hist_df, hist_err = get_historical_macro_matrix()
-        if hist_df is not None:
-            m_tab1, m_tab2, m_tab3, m_tab4, m_tab5 = st.tabs([
-                "ARIMA Time-Series", 
-                "Binary Logistic Regression", 
-                "Discriminant Analysis (LDA)", 
-                "PCA Dimensionality",
-                "Strategy Backtest Engine"
-            ])
-
-            with m_tab1:
-                st.markdown("#### 3-Month ARIMA (1,1,1) CPI Projections")
-                cpi_forecast, arima_err = run_arima_forecast(hist_df['cpi'])
-                if cpi_forecast is not None:
-                    st.dataframe(cpi_forecast.to_frame('Projected CPI (%)'))
-                else:
-                    st.warning(arima_err)
-
-            with m_tab2:
-                st.markdown("#### Logistic Regression Directional Classifier")
-                logit_res, logit_err = run_logistic_regression(hist_df)
-                if logit_res:
-                    st.metric("Statistical Probability P(DXY Close UP Next Month)", f"{logit_res['prob_up']:.1f}%")
-                    st.dataframe(logit_res['coefficients'])
-                else:
-                    st.warning(logit_err)
-
-            with m_tab3:
-                st.markdown("#### Discriminant Analysis Macro Regime Classification")
-                lda_res, lda_err = run_lda_model(hist_df)
-                if lda_res:
-                    regime_map = {1: "Bullish Regime", 0: "Range-Bound Regime", -1: "Bearish Regime"}
-                    st.info(f"**Current LDA Projected Regime:** {regime_map.get(lda_res['regime'], 'Unknown')}")
-                    st.bar_chart(lda_res['probabilities'])
-                else:
-                    st.warning(lda_err)
-
-            with m_tab4:
-                st.markdown("#### Principal Component Analysis (PCA)")
-                pca_res, pca_err = run_pca_decomposition(hist_df)
-                if pca_res:
-                    st.write(f"**Total Variance Explained:** {sum(pca_res['explained_variance']):.1f}%")
-                    st.dataframe(pca_res['components'])
-                else:
-                    st.warning(pca_err)
-
-            with m_tab5:
-                st.markdown("#### Historical Walk-Forward Strategy Backtest")
-                bt_res, bt_err = run_historical_backtest(hist_df)
-                if bt_res:
-                    col_bt1, col_bt2 = st.columns(2)
-                    with col_bt1:
-                        st.metric("Out-of-Sample Model Accuracy", f"{bt_res['win_rate']:.1f}%")
-                    with col_bt2:
-                        st.metric("Total Evaluation Periods", f"{bt_res['total_trades']} Months")
-                    st.write("**Recent Out-of-Sample Predictions vs Actual Outcomes:**")
-                    st.dataframe(bt_res['results_df'].tail(12))
-                else:
-                    st.warning(bt_err)
-
-            st.caption(
-                "💡 **Model Convergence Note:** The 3-Month Macro Framework Heuristic evaluates fundamental policy gap (Taylor Rule) "
-                "over a 90-day horizon, while the Logistic Classifier computes a rolling 30-day statistical probability based on 5-year historical returns."
-            )
+    # Correlated Forex & PAXG Crypto Bar
+    col_fx1, col_fx2, col_crypto = st.columns(3)
+    with col_fx1:
+        eur_info = fx_data.get("EUR/USD (High Pos-Corr)", {"price": 0, "change": 0})
+        st.metric("EUR/USD (Pos-Corr)", f"{eur_info['price']:.4f}", f"{eur_info['change']:+.2f}%")
+    with col_fx2:
+        aud_info = fx_data.get("AUD/USD (Commodity Pos-Corr)", {"price": 0, "change": 0})
+        st.metric("AUD/USD (Pos-Corr)", f"{aud_info['price']:.4f}", f"{aud_info['change']:+.2f}%")
+    with col_crypto:
+        if crypto_data and isinstance(crypto_data, list) and len(crypto_data) > 0:
+            pax = crypto_data[0]
+            pax_price = float(pax.get("priceUsd", 0))
+            pax_change = float(pax.get("changePercent24Hr", 0))
+            st.metric("PAX Gold (PAXG On-Chain)", f"${pax_price:,.2f}", f"{pax_change:+.2f}% (24h)")
         else:
-            st.warning(f"Could not initialize statistical models: {hist_err}")
+            st.metric("PAX Gold (PAXG On-Chain)", "Feed Restricted", "0.00%")
 
-    else:
-        st.error(error)
+    # Macro & Statistical Analysis
+    analysis = analyze_macro_framework(macro_data, dxy_change)
 
-    st.divider()
+    st.markdown("---")
+    st.subheader("🎯 XAUUSD 3-Month Directional Forecast & Probability Engine")
+    
+    forecast_col, rec_col = st.columns([1, 1.5])
+    with forecast_col:
+        st.markdown(f"### Projected Direction: **{analysis['bias']}**")
+        st.write(f"**Bullish Probability:** {analysis['bullish_prob']}%")
+        st.progress(int(analysis['bullish_prob']))
+        st.write(f"**Bearish Probability:** {analysis['bearish_prob']}%")
+    with rec_col:
+        st.markdown("### Strategic Execution Recommendation")
+        st.info(analysis['recommendation'])
 
-    st.subheader("USD News & Economic Calendar")
-    tab1, tab2 = st.tabs(["ForexFactory Calendar", "Investing.com Breaking News"])
+    # Z-Scores & Statistical Modules
+    if historical_df is not None:
+        st.markdown("---")
+        st.subheader("📐 Statistical Mean-Reversion & Z-Score Metrics")
+        z_scores, z_err = calculate_z_scores(historical_df)
+        if z_scores:
+            zc1, zc2 = st.columns(2)
+            with zc1:
+                st.metric("Real Rate Z-Score", f"{z_scores['z_score_real_rate']:.2f} σ", help="Measures standard deviation from historical real interest rate norm.")
+            with zc2:
+                st.metric("DXY Z-Score", f"{z_scores['z_score_dxy']:.2f} σ", help="Identifies overbought/oversold dollar conditions affecting XAUUSD.")
 
-    with tab1:
-        st.markdown("### Upcoming USD Economic Events")
-        for event in ff_events:
-            st.markdown(event)
+        # Plotly Chart Visualization
+        st.markdown("---")
+        st.subheader("📈 Historical Macro & Trend Visualization")
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=historical_df.index, y=historical_df['real_rate'], mode='lines', name='Real Interest Rate (%)', line=dict(color='orange', width=2)))
+        fig.add_trace(go.Scatter(x=historical_df.index, y=historical_df['fed_rate'], mode='lines', name='Fed Funds Rate (%)', line=dict(color='cyan', width=1.5, dash='dot')))
+        fig.update_layout(
+            title='Historical Real Interest Rate vs Fed Funds Rate Dynamics',
+            xaxis_title='Timeline',
+            yaxis_title='Percentage (%)',
+            template='plotly_dark',
+            margin=dict(l=40, r=40, t=40, b=40)
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-    with tab2:
-        st.markdown("### USD & Fed Market Headlines")
-        for item in investing_news:
-            st.markdown(f"• [{item['title']}]({item['link']}) — *{item['published']}*")
+    # Economic Calendar & News Section
+    st.markdown("---")
+    c_col1, c_col2 = st.columns(2)
+    with c_col1:
+        st.subheader("📅 High-Impact USD Events")
+        events = get_forexfactory_usd_events()
+        for ev in events:
+            st.markdown(ev)
+    with c_col2:
+        st.subheader("💡 Macro Economic Framework States")
+        st.write(f"* **AD Framework:** {analysis['ad_state']}")
+        st.write(f"* **SRAS Pressure:** {analysis['sras_state']}")
+        st.write(f"* **LRAS Output Gap:** {analysis['lras_gap']}")
+        st.write(f"* **Taylor Rate Gap:** {analysis['rate_gap']:+.2f}%")
